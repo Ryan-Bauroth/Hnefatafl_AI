@@ -22,7 +22,7 @@ BOARD_START = [
     [1,0,0,0,2,2],
     [1,1,0,2,2,3]
 ]
-CORNERS = [[0, 0], [0, 10], [10, 0], [10, 10]]
+CORNERS = [(0, 0), (0, BOARD_SIZE-1), (BOARD_SIZE-1, 0), (BOARD_SIZE-1, BOARD_SIZE-1)]
 ADJUSTMENTS = [[5, 5, -6, -6], [0, 5, -5, -6], [5, 0, -6, -5], [0, 0, -5, -5]]
 
 # Create the Pygame window
@@ -48,11 +48,12 @@ def setup_board():
 def draw_board():
     screen.fill(BACKGROUND_COLOR)
     pygame.draw.rect(screen, BLACK, (0, 0, WINDOW_SIZE, WINDOW_SIZE), 5)
+    for corner, adjustment in zip(CORNERS, ADJUSTMENTS):
+        row, col = corner
+        pygame.draw.rect(screen, (170, 53, 28), (col * TILE_SIZE + adjustment[0], row * TILE_SIZE + adjustment[1], TILE_SIZE + adjustment[2], TILE_SIZE + adjustment[3]), 0)
+
     for row in range(BOARD_SIZE):
         for col in range(BOARD_SIZE):
-            if [row, col] in CORNERS:
-                idx = CORNERS.index([row, col])
-                pygame.draw.rect(screen, (170, 53, 28), (col * TILE_SIZE + ADJUSTMENTS[idx][0], row * TILE_SIZE + ADJUSTMENTS[idx][1], TILE_SIZE + ADJUSTMENTS[idx][2], TILE_SIZE + ADJUSTMENTS[idx][3]), 0)
             pygame.draw.rect(screen, BLACK, (col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE), 1)
 
             # Draw pieces
