@@ -13,6 +13,14 @@ BLACK = (0, 0, 0)
 ATTACKER_COLOR = (255, 0, 0)
 DEFENDER_COLOR = (0, 0, 255)
 KING_COLOR = (255, 255, 0)
+BOARD_START = [
+    [0,0,0,1,1,1],
+    [0,0,0,0,0,1],
+    [0,0,0,0,0,0],
+    [1,0,0,0,0,2],
+    [1,0,0,0,2,2],
+    [1,1,0,2,2,3]
+]
 
 # Create the Pygame window
 screen = pygame.display.set_mode((WINDOW_SIZE, WINDOW_SIZE))
@@ -26,15 +34,12 @@ king_position = (BOARD_SIZE // 2, BOARD_SIZE // 2)
 
 # Place pieces (Attackers = 1, Defenders = 2, King = 3)
 def setup_board():
-    for row in range(BOARD_SIZE):
-        for col in range(BOARD_SIZE):
-            if (row == 0 or row == BOARD_SIZE-1) and 3 <= col <= BOARD_SIZE - 4:
-                board[row][col] = 1  # Attackers
-            elif (col == 0 or col == BOARD_SIZE-1) and 3 <= row <= BOARD_SIZE - 4:
-                board[row][col] = 1  # Attackers
-            elif (row in [3, 4, 6, 7] and col == 5) or (col in [3, 4, 6, 7] and row == 5):
-                board[row][col] = 2  # Defenders
-    board[king_position[0]][king_position[1]] = 3  # King
+    for row_i, row in enumerate(BOARD_START):
+        for col_i, val in enumerate(row):
+            board[row_i][col_i] = val
+            board[-row_i-1][col_i] = val
+            board[-row_i-1][-col_i-1] = val
+            board[row_i][-col_i-1] = val
 
 # Draw the board
 def draw_board():
