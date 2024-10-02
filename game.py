@@ -8,6 +8,7 @@ pygame.init()
 BOARD_SIZE = 11
 TILE_SIZE = 60
 WINDOW_SIZE = BOARD_SIZE * TILE_SIZE
+BACKGROUND_COLOR = (210, 79, 51)
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 ATTACKER_COLOR = (255, 0, 0)
@@ -38,17 +39,18 @@ def setup_board():
 
 # Draw the board
 def draw_board():
-    screen.fill(WHITE)
+    screen.fill(BACKGROUND_COLOR)
+    pygame.draw.rect(screen, BLACK, (0, 0, WINDOW_SIZE, WINDOW_SIZE), 5)
     for row in range(BOARD_SIZE):
         for col in range(BOARD_SIZE):
             pygame.draw.rect(screen, BLACK, (col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE), 1)
 
             # Draw pieces
             if board[row][col] == 1:  # Attackers
-                pygame.draw.circle(screen, ATTACKER_COLOR, 
+                pygame.draw.circle(screen, BLACK,
                                    (col * TILE_SIZE + TILE_SIZE // 2, row * TILE_SIZE + TILE_SIZE // 2), TILE_SIZE // 2 - 5)
             elif board[row][col] == 2:  # Defenders
-                pygame.draw.circle(screen, DEFENDER_COLOR, 
+                pygame.draw.circle(screen, WHITE,
                                    (col * TILE_SIZE + TILE_SIZE // 2, row * TILE_SIZE + TILE_SIZE // 2), TILE_SIZE // 2 - 5)
             elif board[row][col] == 3:  # King
                 pygame.draw.circle(screen, KING_COLOR, 
