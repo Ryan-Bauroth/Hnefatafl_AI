@@ -52,7 +52,6 @@ def draw_board():
         for col in range(BOARD_SIZE):
             if [row, col] in CORNERS:
                 idx = CORNERS.index([row, col])
-                print(ADJUSTMENTS[idx][3])
                 pygame.draw.rect(screen, (170, 53, 28), (col * TILE_SIZE + ADJUSTMENTS[idx][0], row * TILE_SIZE + ADJUSTMENTS[idx][1], TILE_SIZE + ADJUSTMENTS[idx][2], TILE_SIZE + ADJUSTMENTS[idx][3]), 0)
             pygame.draw.rect(screen, BLACK, (col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE), 1)
 
@@ -70,6 +69,7 @@ def draw_board():
 # Game loop
 def main():
     setup_board()
+    draw_board()
 
     running = True
     while running:
@@ -77,7 +77,18 @@ def main():
             if event.type == pygame.QUIT:
                 running = False
 
-        draw_board()
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == 1:
+                    print("mouse down")
+
+            elif event.type == pygame.MOUSEBUTTONUP:
+                if event.button == 1:
+                    print("mouse up")
+
+            elif event.type == pygame.MOUSEMOTION:
+                mouse_x, mouse_y = pygame.mouse.get_pos()
+                print(str(mouse_x) + " " + str(mouse_y))
+
         pygame.display.flip()
 
     pygame.quit()
