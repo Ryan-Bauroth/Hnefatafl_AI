@@ -28,13 +28,12 @@ king_position = (BOARD_SIZE // 2, BOARD_SIZE // 2)
 def setup_board():
     for row in range(BOARD_SIZE):
         for col in range(BOARD_SIZE):
-            if (row == 0 and col in [3, 4, 5, 6, 7]) or (row == 10 and col in [3, 4, 5, 6, 7]):
+            if (row == 0 or row == BOARD_SIZE-1) and 3 <= col <= BOARD_SIZE - 4:
                 board[row][col] = 1  # Attackers
-            elif (col == 0 and row in [3, 4, 5, 6, 7]) or (col == 10 and row in [3, 4, 5, 6, 7]):
+            elif (col == 0 or col == BOARD_SIZE-1) and 3 <= row <= BOARD_SIZE - 4:
                 board[row][col] = 1  # Attackers
             elif (row in [3, 4, 6, 7] and col == 5) or (col in [3, 4, 6, 7] and row == 5):
                 board[row][col] = 2  # Defenders
-
     board[king_position[0]][king_position[1]] = 3  # King
 
 # Draw the board
