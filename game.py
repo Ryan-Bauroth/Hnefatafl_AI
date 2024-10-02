@@ -37,12 +37,12 @@ king_position = (BOARD_SIZE // 2, BOARD_SIZE // 2)
 
 # Place pieces (Attackers = 1, Defenders = 2, King = 3)
 def setup_board():
-    for row_i, row in enumerate(BOARD_START):
-        for col_i, val in enumerate(row):
-            board[row_i][col_i] = val
-            board[-row_i-1][col_i] = val
-            board[-row_i-1][-col_i-1] = val
-            board[row_i][-col_i-1] = val
+    for row, vals in enumerate(BOARD_START):
+        for col, val in enumerate(vals):
+            board[row][col] = val
+            board[-row-1][col] = val
+            board[-row-1][-col-1] = val
+            board[row][-col-1] = val
 
 # Draw the board
 def draw_board():
