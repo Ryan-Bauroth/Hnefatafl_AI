@@ -1,7 +1,6 @@
 import pygame
 import sys
-
-from decorator import append
+import numpy as np
 
 # Initialize Pygame
 pygame.init()
@@ -37,12 +36,10 @@ ADJUSTMENTS = [[5, 5, -6, -6], [0, 5, -5, -6], [5, 0, -6, -5], [0, 0, -5, -5]]
 screen = pygame.display.set_mode((WINDOW_SIZE, WINDOW_SIZE))
 pygame.display.set_caption("Hnefatafl")
 
-# Game Board
+# Game Vars
 board = [[0 for _ in range(BOARD_SIZE)] for _ in range(BOARD_SIZE)]
 piece_arr = []
-
-# King position
-king_position = (BOARD_SIZE // 2, BOARD_SIZE // 2)
+turn = 1
 
 # Set up board by mirroring 1/4th board (Attackers = 1, Defenders = 2, King = 3)
 def setup_board():
@@ -89,6 +86,31 @@ def draw_board():
                 append_draw_piece(row, col, 3)
 
 """
+Checks for kills
+
+:param row: int the most recently moved piece's row
+:param col: int the most recently moved piece's col
+:param piece: int the most recently moved piece's piece id
+"""
+def check_kills(row, col, piece):
+    enemy_piece = 1 if piece == 2 else 2
+    # north direction check
+    if row - 2 >= 0:
+        if board[row - 1][col] == enemy_piece and (board[row - 2][col] == piece or (row - 2, col) in CORNERS):
+            board[row - 1][col] = 0
+    # south direction check
+    if row + 2 <= BOARD_SIZE - 1:
+        if board[row + 1][col] == enemy_piece and (board[row + 2][col] == piece or (row + 2, col) in CORNERS):
+            board[row + 1][col] = 0
+    # west direction check
+    if col - 2 >= 0:
+        if board[row][col - 1] == enemy_piece and (board[row][col - 2] == piece or (row, col - 2) in CORNERS):
+            board[row][col - 1] = 0
+    # east direction check
+    if col + 2 <= BOARD_SIZE - 1:
+        if board[row][col + 1] == enemy_piece and (board[row][col + 2] == piece or (row, col + 2) in CORNERS):
+            board[row][col + 1] = 0
+"""   
 Game loop
 
 Piece movement code assisted by AI
@@ -99,6 +121,7 @@ def main():
     draw_board()
 
     global piece_arr
+    global turn
 
     is_dragging = False
     selected_piece = None
@@ -113,7 +136,7 @@ def main():
 
                 # Check if we are clicking on a piece
                 for piece in piece_arr:
-                    if piece["rect"].collidepoint(mouse_x, mouse_y):
+                    if piece["rect"].collidepoint(mouse_x, mouse_y) and (turn == piece["piece"] or (piece["piece"] == 3 and turn == 2)):
                         is_dragging = True
                         selected_piece = piece
                         board[selected_piece["row"]][selected_piece["col"]] = 0
@@ -122,9 +145,23 @@ def main():
             elif event.type == pygame.MOUSEBUTTONUP:
                 if is_dragging:
                     mouse_x, mouse_y = pygame.mouse.get_pos()
+                    row = selected_piece["row"]
+                    col = selected_piece["col"]
+                    piece = selected_piece["piece"]
                     grid_x = mouse_x // TILE_SIZE
                     grid_y = mouse_y // TILE_SIZE
-                    board[grid_y][grid_x] = selected_piece["piece"]
+
+                    # If the user is playing in a empty spot
+                    if board[grid_y][grid_x] == 0 and (grid_y == row or grid_x == col):
+                        # play the piece
+                        board[grid_y][grid_x] = piece
+                        # if the piece is not going back to its og location, change turns
+                        if not (grid_y == row and grid_x == col):
+                            check_kills(grid_y, grid_x, piece)
+                            turn = 1 if turn == 2 else 2
+                    else:
+                        # if the user is playing in a full spot, return the piece to its og location
+                        board[row][col] = piece
                 is_dragging = False
 
         piece_arr = []
