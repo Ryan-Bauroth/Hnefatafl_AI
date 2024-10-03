@@ -44,7 +44,7 @@ piece_arr = []
 # King position
 king_position = (BOARD_SIZE // 2, BOARD_SIZE // 2)
 
-# Place pieces (Attackers = 1, Defenders = 2, King = 3)
+# Set up board by mirroring 1/4th board (Attackers = 1, Defenders = 2, King = 3)
 def setup_board():
     for row, vals in enumerate(BOARD_START):
         for col, val in enumerate(vals):
@@ -53,6 +53,7 @@ def setup_board():
             board[-row-1][-col-1] = val
             board[row][-col-1] = val
 
+# Updates piece arr and draws piece on the screen
 def append_draw_piece(row, col, piece):
     piece_arr.append({
         "rect": pygame.Rect(col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE),
@@ -87,7 +88,11 @@ def draw_board():
             elif board[row][col] == 3:  # King
                 append_draw_piece(row, col, 3)
 
-# Game loop
+"""
+Game loop
+
+Piece movement code assisted by AI
+"""
 clock = pygame.time.Clock()
 def main():
     setup_board()
