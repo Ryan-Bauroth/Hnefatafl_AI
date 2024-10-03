@@ -1,6 +1,6 @@
 import pygame
 import sys
-import numpy as np
+from pygame import gfxdraw
 
 # Initialize Pygame
 pygame.init()
@@ -12,13 +12,13 @@ WINDOW_SIZE = BOARD_SIZE * TILE_SIZE
 FPS = 60
 
 # Color Constants
-BACKGROUND_COLOR = (210, 79, 51)
+BACKGROUND_COLOR = (247,247,247)
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
-ATTACKER_COLOR = BLACK
-DEFENDER_COLOR = WHITE
+LIGHT_GRAY = (180, 180, 180)
 KING_COLOR = (255, 255, 0)
-PIECE_COLORS = [WHITE, ATTACKER_COLOR, DEFENDER_COLOR, KING_COLOR]
+CORNER_COLOR = (233, 196, 177)
+PIECE_COLORS = [(0, 0, 0), BLACK, WHITE, KING_COLOR]
 
 # Board Constants
 BOARD_START = [
@@ -30,17 +30,17 @@ BOARD_START = [
     [1,1,0,2,2,3]
 ]
 CORNERS = [(0, 0), (0, BOARD_SIZE-1), (BOARD_SIZE-1, 0), (BOARD_SIZE-1, BOARD_SIZE-1)]
-ADJUSTMENTS = [[5, 5, -6, -6], [0, 5, -5, -6], [5, 0, -6, -5], [0, 0, -5, -5]]
+CENTER = (BOARD_SIZE // 2, BOARD_SIZE // 2)
 
 # Load piece images and scale them to fit the tile size
 attacker_img = pygame.image.load('pieces/attacker.png')
-attacker_img = pygame.transform.scale(attacker_img, (TILE_SIZE - 10, TILE_SIZE - 10))
+attacker_img = pygame.transform.smoothscale(attacker_img, (TILE_SIZE - 10, TILE_SIZE - 10))
 
 defender_img = pygame.image.load('pieces/defender.png')
-defender_img = pygame.transform.scale(defender_img, (TILE_SIZE - 10, TILE_SIZE - 10))
+defender_img = pygame.transform.smoothscale(defender_img, (TILE_SIZE - 10, TILE_SIZE - 10))
 
 king_img = pygame.image.load('pieces/king.png')
-king_img = pygame.transform.scale(king_img, (TILE_SIZE - 10, TILE_SIZE - 10))
+king_img = pygame.transform.smoothscale(king_img, (TILE_SIZE - 10, TILE_SIZE - 10))
 
 # Create the Pygame window
 screen = pygame.display.set_mode((WINDOW_SIZE, WINDOW_SIZE))
@@ -68,34 +68,45 @@ def append_draw_piece(row, col, piece):
         "row": row,
         "col": col,
     })
-    '''pygame.draw.circle(
+    pygame.gfxdraw.filled_circle(
         screen,
+        col * TILE_SIZE + TILE_SIZE // 2,
+        row * TILE_SIZE + TILE_SIZE // 2,
+        TILE_SIZE // 2 - 9,
         PIECE_COLORS[piece],
-        (col * TILE_SIZE + TILE_SIZE // 2, row * TILE_SIZE + TILE_SIZE // 2),
-        TILE_SIZE // 2 - 5
-    )'''
-    
-    piece_x = col * TILE_SIZE + TILE_SIZE // 2
-    piece_y = row * TILE_SIZE + TILE_SIZE // 2
-    
-    if piece == 1:  # Attacker
-        screen.blit(attacker_img, (piece_x - TILE_SIZE // 2 + 5, piece_y - TILE_SIZE // 2 + 5))
-    elif piece == 2:  # Defender
-        screen.blit(defender_img, (piece_x - TILE_SIZE // 2 + 5, piece_y - TILE_SIZE // 2 + 5))
-    elif piece == 3:  # King
-        screen.blit(king_img, (piece_x - TILE_SIZE // 2 + 5, piece_y - TILE_SIZE // 2 + 5))
+    )
+    pygame.gfxdraw.aacircle(
+        screen,
+        col * TILE_SIZE + TILE_SIZE // 2,
+        row * TILE_SIZE + TILE_SIZE // 2,
+        TILE_SIZE // 2 - 9,
+        BLACK
+    )
+
+
+    # piece_x = col * TILE_SIZE + TILE_SIZE // 2
+    # piece_y = row * TILE_SIZE + TILE_SIZE // 2
+    #
+    # if piece == 1:  # Attacker
+    #     screen.blit(attacker_img, (piece_x - TILE_SIZE // 2 + 5, piece_y - TILE_SIZE // 2 + 5))
+    # elif piece == 2:  # Defender
+    #     screen.blit(defender_img, (piece_x - TILE_SIZE // 2 + 5, piece_y - TILE_SIZE // 2 + 5))
+    # elif piece == 3:  # King
+    #     screen.blit(king_img, (piece_x - TILE_SIZE // 2 + 5, piece_y - TILE_SIZE // 2 + 5))
 
 # Draw the board
 def draw_board():
     screen.fill(BACKGROUND_COLOR)
-    pygame.draw.rect(screen, BLACK, (0, 0, WINDOW_SIZE, WINDOW_SIZE), 5)
-    for corner, adjustment in zip(CORNERS, ADJUSTMENTS):
+    pygame.draw.rect(screen, LIGHT_GRAY, (0, 0, WINDOW_SIZE, WINDOW_SIZE), 2)
+    for corner in CORNERS:
         row, col = corner
-        pygame.draw.rect(screen, (170, 53, 28), (col * TILE_SIZE + adjustment[0], row * TILE_SIZE + adjustment[1], TILE_SIZE + adjustment[2], TILE_SIZE + adjustment[3]), 0)
+        pygame.draw.rect(screen, CORNER_COLOR, (col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE), 0)
+    c_row, c_col = CENTER
+    pygame.draw.rect(screen, CORNER_COLOR, (c_col * TILE_SIZE, c_row * TILE_SIZE, TILE_SIZE, TILE_SIZE), 0)
 
     for row in range(BOARD_SIZE):
         for col in range(BOARD_SIZE):
-            pygame.draw.rect(screen, BLACK, (col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE), 1)
+            pygame.draw.rect(screen, LIGHT_GRAY, (col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE), 1)
 
             # Draw pieces
             if board[row][col] == 1:  # Attackers
@@ -164,7 +175,7 @@ def check_play(grid_y, row, grid_x, col, piece):
     if not (grid_y == row or grid_x == col):
         return False
     # pieces cannot move onto the corners (except for kings)
-    if (grid_y, grid_x) in CORNERS:
+    if (grid_y, grid_x) in CORNERS or (grid_y, grid_x) == CENTER:
         if piece != 3:
             return False
         else:
@@ -255,12 +266,19 @@ def main():
 
         if is_dragging:
             mouse_x, mouse_y = pygame.mouse.get_pos()
-            selected_piece["rect"].center = (mouse_x, mouse_y)
-            pygame.draw.circle(
+            pygame.gfxdraw.filled_circle(
                 screen,
+                mouse_x,
+                mouse_y,
+                TILE_SIZE // 2 - 8,
                 PIECE_COLORS[selected_piece["piece"]],
-                selected_piece["rect"].center,
-                TILE_SIZE // 2 - 5,
+            )
+            pygame.gfxdraw.aacircle(
+                screen,
+                mouse_x,
+                mouse_y,
+                TILE_SIZE // 2 - 8,
+                BLACK
             )
 
         # Draw the piece
