@@ -96,20 +96,86 @@ def check_kills(row, col, piece):
     enemy_piece = 1 if piece == 2 else 2
     # north direction check
     if row - 2 >= 0:
+        # normal piece capture
         if board[row - 1][col] == enemy_piece and (board[row - 2][col] == piece or (row - 2, col) in CORNERS):
             board[row - 1][col] = 0
+    # north king capture
+    if col - 1 > 0 and col + 1 < BOARD_SIZE - 1 and row != BOARD_SIZE - 1 and row != 0:
+        if piece == 1 and board[row - 1][col] == 3 and (row - 2 < 0 or board[row - 2][col] == piece) and board[row - 1][col - 1] == piece and board[row - 1][col + 1] == piece:
+            print("ATTACKERS WIN")
     # south direction check
     if row + 2 <= BOARD_SIZE - 1:
         if board[row + 1][col] == enemy_piece and (board[row + 2][col] == piece or (row + 2, col) in CORNERS):
             board[row + 1][col] = 0
+    # south king capture
+    if col - 1 > 0 and col + 1 < BOARD_SIZE - 1 and row != BOARD_SIZE - 1 and row != 0:
+        if piece == 1 and board[row + 1][col] == 3 and (row + 2 < BOARD_SIZE or board[row + 2][col] == piece) and \
+                board[row + 1][col - 1] == piece and board[row + 1][col + 1] == piece:
+            print("ATTACKERS WIN")
     # west direction check
     if col - 2 >= 0:
         if board[row][col - 1] == enemy_piece and (board[row][col - 2] == piece or (row, col - 2) in CORNERS):
             board[row][col - 1] = 0
+    # west king check
+    if row - 1 > 0 and row + 1 < BOARD_SIZE - 1 and col != BOARD_SIZE - 1 and col != 0:
+        if piece == 1 and board[row][col - 1] == 3 and (col - 2 < 0 or board[row][col - 2] == piece) and \
+                board[row - 1][col - 1] == piece and board[row + 1][col - 1] == piece:
+            print("ATTACKERS WIN")
     # east direction check
     if col + 2 <= BOARD_SIZE - 1:
         if board[row][col + 1] == enemy_piece and (board[row][col + 2] == piece or (row, col + 2) in CORNERS):
             board[row][col + 1] = 0
+    # east king check
+    if row - 1 > 0 and row + 1 < BOARD_SIZE - 1 and col != BOARD_SIZE - 1 and col != 0:
+        if piece == 1 and board[row][col + 1] == 3 and (col + 2 > BOARD_SIZE - 1 or board[row][col + 2] == piece) and \
+                board[row - 1][col + 1] == piece and board[row + 1][col + 1] == piece:
+            print("ATTACKERS WIN")
+
+"""
+Checks to see if an intended play is legal
+
+:param grid_y: int the intended play's row
+:param row: int the moving pieces original row
+:param grid_x: int the intended play's col
+:param col: int the moving pieces original col
+"""
+def check_play(grid_y, row, grid_x, col, piece):
+    # pieces move like the rook in chess
+    if not (grid_y == row or grid_x == col):
+        return False
+    # pieces cannot move onto the corners (except for kings)
+    if (grid_y, grid_x) in CORNERS:
+        if piece != 3:
+            return False
+        else:
+            print("DEFENDERS WIN")
+            return True
+    # thus moving in the x direction
+    if grid_y == row:
+        # if moving upward
+        if grid_x - col > 0:
+            for c in range(col + 1, grid_x):
+                if board[row][c] != 0:
+                    return False
+        # if moving downward
+        if grid_x - col < 0:
+            for c in range(col - 1, grid_x, -1):
+                if board[row][c] != 0:
+                    return False
+    # thus moving in the y direction
+    else:
+        # if moving right
+        if grid_y - row > 0:
+            for r in range(row + 1, grid_y):
+                if board[r][col] != 0:
+                    return False
+        # if moving left
+        if grid_y - row < 0:
+            for r in range(row - 1, grid_y, -1):
+                if board[r][col] != 0:
+                    return False
+    return True
+
 """   
 Game loop
 
@@ -152,7 +218,7 @@ def main():
                     grid_y = mouse_y // TILE_SIZE
 
                     # If the user is playing in a empty spot
-                    if board[grid_y][grid_x] == 0 and (grid_y == row or grid_x == col):
+                    if board[grid_y][grid_x] == 0 and check_play(grid_y, row, grid_x, col, piece):
                         # play the piece
                         board[grid_y][grid_x] = piece
                         # if the piece is not going back to its og location, change turns
