@@ -32,6 +32,16 @@ BOARD_START = [
 CORNERS = [(0, 0), (0, BOARD_SIZE-1), (BOARD_SIZE-1, 0), (BOARD_SIZE-1, BOARD_SIZE-1)]
 ADJUSTMENTS = [[5, 5, -6, -6], [0, 5, -5, -6], [5, 0, -6, -5], [0, 0, -5, -5]]
 
+# Load piece images and scale them to fit the tile size
+attacker_img = pygame.image.load('pieces/attacker.png')
+attacker_img = pygame.transform.scale(attacker_img, (TILE_SIZE - 10, TILE_SIZE - 10))
+
+defender_img = pygame.image.load('pieces/defender.png')
+defender_img = pygame.transform.scale(defender_img, (TILE_SIZE - 10, TILE_SIZE - 10))
+
+king_img = pygame.image.load('pieces/king.png')
+king_img = pygame.transform.scale(king_img, (TILE_SIZE - 10, TILE_SIZE - 10))
+
 # Create the Pygame window
 screen = pygame.display.set_mode((WINDOW_SIZE, WINDOW_SIZE))
 pygame.display.set_caption("Hnefatafl")
@@ -58,12 +68,22 @@ def append_draw_piece(row, col, piece):
         "row": row,
         "col": col,
     })
-    pygame.draw.circle(
+    '''pygame.draw.circle(
         screen,
         PIECE_COLORS[piece],
         (col * TILE_SIZE + TILE_SIZE // 2, row * TILE_SIZE + TILE_SIZE // 2),
         TILE_SIZE // 2 - 5
-    )
+    )'''
+    
+    piece_x = col * TILE_SIZE + TILE_SIZE // 2
+    piece_y = row * TILE_SIZE + TILE_SIZE // 2
+    
+    if piece == 1:  # Attacker
+        screen.blit(attacker_img, (piece_x - TILE_SIZE // 2 + 5, piece_y - TILE_SIZE // 2 + 5))
+    elif piece == 2:  # Defender
+        screen.blit(defender_img, (piece_x - TILE_SIZE // 2 + 5, piece_y - TILE_SIZE // 2 + 5))
+    elif piece == 3:  # King
+        screen.blit(king_img, (piece_x - TILE_SIZE // 2 + 5, piece_y - TILE_SIZE // 2 + 5))
 
 # Draw the board
 def draw_board():
