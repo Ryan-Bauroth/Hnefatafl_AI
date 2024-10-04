@@ -195,7 +195,7 @@ def check_play(grid_y, row, grid_x, col, piece):
     if (grid_y, grid_x) in CORNERS or (grid_y, grid_x) == CENTER:
         if piece != 3:
             return False
-        else:
+        elif (grid_y, grid_x) in CORNERS:
             print("DEFENDERS WIN")
             return True
     # thus moving in the x direction
@@ -236,7 +236,79 @@ def clear_field_colors():
         "new_row": -1,
     }
 
+def update_possible_moves(col, row, piece):
+    global possible_moves
+    possible_moves = []
+    for r in range(row - 1, -1, -1):
+        if board[r][col] == 0:
+            if piece == 3 or ((r, col) not in CORNERS and (r, col) != CENTER):
+                possible_moves.append((r, col))
+        else:
+            break
+    for r in range(row + 1, BOARD_SIZE):
+        if board[r][col] == 0:
+            if piece == 3 or ((r, col) not in CORNERS and (r, col) != CENTER):
+                possible_moves.append((r, col))
+        else:
+            break
+    for c in range(col - 1, -1, -1):
+        if board[row][c] == 0:
+            if piece == 3 or ((row, c) not in CORNERS and (row, c) != CENTER):
+                possible_moves.append((row, c))
+        else:
+            break
+    for c in range(col + 1, BOARD_SIZE):
+        if board[row][c] == 0:
+            if piece == 3 or ((row, c) not in CORNERS and (row, c) != CENTER):
+                possible_moves.append((row, c))
+        else:
+            break
+
+
+
+
+
+def draw_possible_moves():
+    global possible_moves
+    for move in possible_moves:
+        row, col = move
+        pygame.gfxdraw.filled_circle(
+            screen,
+            col * TILE_SIZE + TILE_SIZE // 2,
+            row * TILE_SIZE + TILE_SIZE // 2,
+            TILE_SIZE // 2 - 20,
+            KILL_COLOR,
+        )
+        pygame.gfxdraw.aacircle(
+            screen,
+            col * TILE_SIZE + TILE_SIZE // 2,
+            row * TILE_SIZE + TILE_SIZE // 2,
+            TILE_SIZE // 2 - 20,
+            LIGHT_GRAY,
+        )
+
+def place_piece(grid_x, grid_y, row, col, piece):
+    global turn
+    global kill_cords
+    global recent_move_cords
+    global possible_moves
+    # play the piece
+    board[grid_y][grid_x] = piece
+    # if the piece is not going back to its og location, change turns
+    if not (grid_y == row and grid_x == col):
+        board[row][col] = 0
+        kill_cords = check_kills(grid_y, grid_x, piece)
+        recent_move_cords = {
+            "original_col": col,
+            "original_row": row,
+            "new_col": grid_x,
+            "new_row": grid_y,
+        }
+        possible_moves = []
+        turn = 1 if turn == 2 else 2
+
 kill_cords = []
+possible_moves = []
 
 """   
 Game loop
@@ -253,6 +325,7 @@ def main():
     global turn
     global recent_move_cords
     global kill_cords
+    global possible_moves
 
     is_dragging = False
     selected_piece = None
@@ -264,15 +337,32 @@ def main():
                 sys.exit()
 
             elif event.type == pygame.MOUSEBUTTONDOWN:
+                piece_clicked = False
+
                 mouse_x, mouse_y = event.pos
 
                 # Check if we are clicking on a piece
                 for piece in piece_arr:
                     if piece["rect"].collidepoint(mouse_x, mouse_y) and (turn == piece["piece"] or (piece["piece"] == 3 and turn == 2)):
+                        update_possible_moves(piece["col"], piece["row"], piece["piece"])
                         is_dragging = True
+                        piece_clicked = True
                         selected_piece = piece
                         board[selected_piece["row"]][selected_piece["col"]] = 0
                         break
+                if not piece_clicked:
+                    if selected_piece is not None:
+                        grid_x = mouse_x // TILE_SIZE
+                        grid_y = mouse_y // TILE_SIZE
+                        row = selected_piece["row"]
+                        col = selected_piece["col"]
+                        piece = selected_piece["piece"]
+                        if (grid_y, grid_x) in possible_moves:
+                            if board[grid_y][grid_x] == 0 and check_play(grid_y, row, grid_x, col, piece):
+                                place_piece(grid_x, grid_y, row, col, piece)
+                    possible_moves = []
+
+
 
             elif event.type == pygame.MOUSEBUTTONUP:
                 if is_dragging:
@@ -285,21 +375,7 @@ def main():
 
                     # If the user is playing in a empty spot
                     if board[grid_y][grid_x] == 0 and check_play(grid_y, row, grid_x, col, piece):
-                        # play the piece
-                        board[grid_y][grid_x] = piece
-                        # if the piece is not going back to its og location, change turns
-                        if not (grid_y == row and grid_x == col):
-                            kill_cords = check_kills(grid_y, grid_x, piece)
-                            recent_move_cords = {
-                                "original_col": col,
-                                "original_row": row,
-                                "new_col": grid_x,
-                                "new_row": grid_y,
-                            }
-                            turn = 1 if turn == 2 else 2
-                    else:
-                        # if the user is playing in a full spot, return the piece to its og location
-                        board[row][col] = piece
+                        place_piece(grid_x, grid_y, row, col, piece)
                 is_dragging = False
 
         piece_arr = []
@@ -310,6 +386,7 @@ def main():
         for kill_cord in kill_cords:
             x, y = kill_cord
             update_field_colors(y, x, KILL_COLOR)
+        draw_possible_moves()
         draw_board()
 
         if is_dragging:
@@ -318,14 +395,14 @@ def main():
                 screen,
                 mouse_x,
                 mouse_y,
-                TILE_SIZE // 2 - 8,
+                TILE_SIZE // 2 - 9,
                 PIECE_COLORS[selected_piece["piece"]],
             )
             pygame.gfxdraw.aacircle(
                 screen,
                 mouse_x,
                 mouse_y,
-                TILE_SIZE // 2 - 8,
+                TILE_SIZE // 2 - 9,
                 BLACK
             )
 
