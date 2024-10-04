@@ -376,6 +376,8 @@ def main():
                     # If the user is playing in a empty spot
                     if board[grid_y][grid_x] == 0 and check_play(grid_y, row, grid_x, col, piece):
                         place_piece(grid_x, grid_y, row, col, piece)
+                    else:
+                        board[row][col] = piece
                 is_dragging = False
 
         piece_arr = []
@@ -386,8 +388,8 @@ def main():
         for kill_cord in kill_cords:
             x, y = kill_cord
             update_field_colors(y, x, KILL_COLOR)
-        draw_possible_moves()
         draw_board()
+        draw_possible_moves()
 
         if is_dragging:
             mouse_x, mouse_y = pygame.mouse.get_pos()
