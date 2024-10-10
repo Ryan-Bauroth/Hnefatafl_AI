@@ -53,6 +53,36 @@ class Game:
         self.turn = 1
         self.kill_coords = []
         self.possible_moves = []
+        self.winning_team = 0
+
+    def reset(self):
+        self.setup_board()
+        self.turn = 1
+        return self.get_state_representation()
+
+    def get_state_representation(self):
+        # Flatten the board for input into a neural network
+        flat_board = []
+        for row in self.board:
+            flat_board.extend(row)
+        return flat_board
+
+    def get_reward(self):
+        return self.winning_team
+
+    def is_over(self):
+        return self.winning_team != 0
+
+    def getPossibleActions(self):
+        all_possible_moves = []
+        for row in range(BOARD_SIZE):
+            for col in range(BOARD_SIZE):
+                if self.board[row][col] == self.turn:
+                    piece_moves = self.get_piece_possible_moves(col, row, self.turn)
+                    for move in piece_moves:
+                        all_possible_moves.append((row, col, move[0], move[1]))
+        return all_possible_moves
+
     def play_game(self):
         pygame.init()
         clock = pygame.time.Clock()
@@ -72,7 +102,8 @@ class Game:
                     # Check if we are clicking on a piece
                     for piece in self.piece_arr:
                         if piece["rect"].collidepoint(mouse_x, mouse_y) and (self.turn == piece["piece"] or (piece["piece"] == 3 and self.turn == 2)):
-                            self.update_possible_moves(piece["col"], piece["row"], piece["piece"])
+                            self.possible_moves = []
+                            self.possible_moves = self.get_piece_possible_moves(piece["col"], piece["row"], piece["piece"])
                             is_dragging = True
                             piece_clicked = True
                             selected_piece = piece
@@ -176,6 +207,7 @@ class Game:
                 pygame.draw.rect(screen, LIGHT_GRAY, (col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE), 1)
                 # Draw pieces
                 self.append_draw_piece(row, col, self.board[row][col])
+
     def check_kills(self, row, col, piece):
         """
         Checks for kills
@@ -211,19 +243,19 @@ class Game:
             # north king capture
             if col-1 > 0 and col+1 < BOARD_SIZE-1 and row != BOARD_SIZE-1 and row != 0:
                 if self.board[row-1][col] == 3 and (row-2 < 0 or self.board[row-2][col] == 1) and self.board[row-1][col-1] == 1 and self.board[row-1][col+1] == 1:
-                    print("ATTACKERS WIN")
+                    self.winning_team = 1
             # south king capture
             if col-1 > 0 and col+1 < BOARD_SIZE-1 and row != BOARD_SIZE-1 and row != 0:
                 if self.board[row+1][col] == 3 and (row+2 < BOARD_SIZE or self.board[row+2][col] == piece) and self.board[row+1][col-1] == 1 and self.board[row+1][col+1] == 1:
-                    print("ATTACKERS WIN")
+                    self.winning_team = 1
             # west king check
             if row-1 > 0 and row+1 < BOARD_SIZE-1 and col != BOARD_SIZE-1 and col != 0:
                 if self.board[row][col-1] == 3 and (col-2 < 0 or self.board[row][col-2] == piece) and self.board[row-1][col-1] == 1 and self.board[row+1][col-1] == 1:
-                    print("ATTACKERS WIN")
+                    self.winning_team = 1
             # east king check
             if row-1 > 0 and row+1 < BOARD_SIZE-1 and col != BOARD_SIZE-1 and col != 0:
                 if self.board[row][col+1] == 3 and (col+2 > BOARD_SIZE-1 or self.board[row][col+2] == piece) and self.board[row-1][col+1] == 1 and self.board[row+1][col+1] == 1:
-                    print("ATTACKERS WIN")
+                    self.winning_team = 1
         return kill_coords
     def check_play(self, grid_y, row, grid_x, col, piece):
         """
@@ -242,7 +274,7 @@ class Game:
             if piece != 3:
                 return False
             elif (grid_y, grid_x) in CORNERS:
-                print("DEFENDERS WIN")
+                self.winning_team = 2
                 return True
         # thus moving in the x direction
         if grid_y == row:
@@ -278,32 +310,35 @@ class Game:
             "new_col": -1,
             "new_row": -1,
         }
-    def update_possible_moves(self, col, row, piece):
-        self.possible_moves = []
+
+    def get_piece_possible_moves(self, col, row, piece):
+        moves = []
         for r in range(row - 1, -1, -1):
             if self.board[r][col] == 0:
                 if piece == 3 or ((r, col) not in CORNERS and (r, col) != CENTER):
-                    self.possible_moves.append((r, col))
+                    moves.append((r, col))
             else:
                 break
         for r in range(row + 1, BOARD_SIZE):
             if self.board[r][col] == 0:
                 if piece == 3 or ((r, col) not in CORNERS and (r, col) != CENTER):
-                    self.possible_moves.append((r, col))
+                    moves.append((r, col))
             else:
                 break
         for c in range(col - 1, -1, -1):
             if self.board[row][c] == 0:
                 if piece == 3 or ((row, c) not in CORNERS and (row, c) != CENTER):
-                    self.possible_moves.append((row, c))
+                    moves.append((row, c))
             else:
                 break
         for c in range(col + 1, BOARD_SIZE):
             if self.board[row][c] == 0:
                 if piece == 3 or ((row, c) not in CORNERS and (row, c) != CENTER):
-                    self.possible_moves.append((row, c))
+                    moves.append((row, c))
             else:
                 break
+
+        return moves
     def draw_possible_moves(self):
         for move in self.possible_moves:
             row, col = move
