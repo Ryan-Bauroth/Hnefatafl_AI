@@ -67,13 +67,18 @@ class Game:
             flat_board.extend(row)
         return flat_board
 
-    def get_reward(self):
-        return self.winning_team
+    def get_reward(self, player):
+        if player == self.winning_team:
+            return 1
+        elif self.winning_team != 0:
+            return -1
+        else:
+            return 0
 
     def is_over(self):
         return self.winning_team != 0
 
-    def getPossibleActions(self):
+    def get_possible_moves(self):
         all_possible_moves = []
         for row in range(BOARD_SIZE):
             for col in range(BOARD_SIZE):
@@ -371,6 +376,8 @@ class Game:
             }
             self.possible_moves = []
             self.turn = 3 - self.turn
+            if not self.get_possible_moves():
+                self.winning_team = piece
 
 if __name__ == "__main__":
     app = Game()
