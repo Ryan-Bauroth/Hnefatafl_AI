@@ -172,16 +172,19 @@ def train_model(game, agent1, agent2, num_episodes=1000):
             else:
                 game.place_piece(grid_x, grid_y, row, col, game.turn)
             states1 = (state, game.get_state_representation())
-            reward1 = game.get_reward(turn1)
             done = game.is_over()
 
             if done:
+                time.sleep(10)
                 winning_team[game.winning_team] += 1
+                reward1 = game.get_reward(turn1)
                 total_reward_agent1 += reward1
+                total_reward_agent2 -= 1
                 agent1.memory.append((states1[0], action1, reward1, states1[1], True))
                 break
 
             if run > 0:
+                reward2 = game.get_reward(turn2)
                 total_reward_agent2 += reward2
                 agent2.memory.append((states2[0], action2, reward2, states2[1], False))
 
@@ -204,12 +207,18 @@ def train_model(game, agent1, agent2, num_episodes=1000):
             done = game.is_over()
 
             if done:
+                if episode % 100 == 0 and episode > 0:
+                    time.sleep(2)
                 winning_team[game.winning_team] += 1
+                reward2 = game.get_reward(turn2)
                 total_reward_agent2 += reward2
+                total_reward_agent1 -= 1
                 agent2.memory.append((states2[0], action2, reward2, states2[1], True))
+                break
 
             state = game.get_state_representation()
 
+            reward1 = game.get_reward(turn1)
             total_reward_agent1 += reward1
             agent1.memory.append((states1[0], action1, reward1, states1[1], False))
 
@@ -235,5 +244,4 @@ def train_model(game, agent1, agent2, num_episodes=1000):
 thread = threading.Thread(target=lambda: train_model(game, agent1, agent2, num_episodes))
 thread.start()
 
-print("here")
 game.play_game()

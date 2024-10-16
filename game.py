@@ -106,6 +106,9 @@ class Game:
             return self.reward_vals[player]
 
     def is_over(self):
+        if self.check_king_win():
+            self.winning_team = 2
+            return True
         return self.winning_team != 0
 
     def get_piece_possible_moves(self, col, row, piece):
@@ -176,6 +179,7 @@ class Game:
         self.board[grid_y][grid_x] = piece
         # if the piece is not going back to its og location, change turns
         if not (grid_y == row and grid_x == col):
+            self.reward_vals[self.turn] = 0
             self.board[row][col] = 0
             self.kill_coords = self.check_kills(grid_y, grid_x, piece)
             self.recent_move_coords = {
@@ -186,7 +190,6 @@ class Game:
             }
             self.possible_moves = []
             self.turn = 3 - self.turn
-            self.reward_vals[self.turn] = 0
             if not self.get_possible_moves():
                 self.winning_team = piece
 
@@ -240,8 +243,8 @@ class Game:
                 if self.board[row][col+1] == 3 and (col+2 > BOARD_SIZE-1 or self.board[row][col+2] == piece) and self.board[row-1][col+1] == 1 and self.board[row+1][col+1] == 1:
                     self.winning_team = 1
         if len(kill_coords) > 0:
-            self.reward_vals[self.turn] += .2
-            self.reward_vals[3 - self.turn] -= .2
+            self.reward_vals[self.turn] += .05
+            self.reward_vals[3 - self.turn] -= .05
         return kill_coords
 
     def check_king_win(self):
