@@ -193,7 +193,6 @@ class Game:
             self.turn = 3 - self.turn
             if not self.get_possible_moves():
                 self.winning_team = piece
-
     def check_kills(self, row, col, piece):
         """
         Checks for kills
