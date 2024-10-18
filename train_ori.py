@@ -134,7 +134,7 @@ def train_dqn():
         for move_i in range(max_moves):
             if game.is_over(): break
             if move_i % check_freq == 0:
-                print(f'{move_i}\t{(DateTime.now() - temp_time) / check_freq}')
+                #print(f'{move_i}\t{(DateTime.now() - temp_time) / check_freq}')
                 temp_time = DateTime.now()
             turn = game.turn
             state = game.get_state_representation()
@@ -179,9 +179,9 @@ def train_dqn():
                 train_on_batch(batch, dqn[turn], optimizer[turn], gamma)
             
             episode_reward[turn] += reward  # Accumulate reward for the current player
-        
+
         epsilon = max(min_epsilon, epsilon * epsilon_decay)
-        f'{episode_reward}\t{game.winning_team}'
+        print(f'{episode_reward}\t{game.winning_team}')
     
     # Save the trained models for both players
     torch.save(dqn[1].state_dict(), 'models/trained_dqn_1.pth')
