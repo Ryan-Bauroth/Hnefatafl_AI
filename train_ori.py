@@ -5,6 +5,7 @@ import torch.optim as optim
 import random
 from collections import deque
 from game import *
+from datetime import datetime as DateTime
 
 class DQN(nn.Module):
     def __init__(self, input_size, output_size):
@@ -124,19 +125,29 @@ def train_dqn():
     num_episodes = 1000  # Number of training episodes
     for episode in range(num_episodes):
         game = Game()
+        game.setup_board()
         episode_reward = {i: 0 for i in (1, 2)}
-
-        while not game.is_over():
+        
+        temp_time = DateTime.now()
+        check_freq = 100
+        max_moves = 1000
+        for move_i in range(max_moves):
+            if game.is_over(): break
+            if move_i % check_freq == 0:
+                print(f'{move_i}\t{(DateTime.now() - temp_time) / check_freq}')
+                temp_time = DateTime.now()
             turn = game.turn
             state = game.get_state_representation()
-            
+            '''print('—'*10)
+            for board_i in range(BOARD_SIZE):
+                print(' '.join(str(v) for v in state[BOARD_SIZE*board_i:BOARD_SIZE*(board_i+1)]))'''
             state_tensor = torch.FloatTensor(state).unsqueeze(0)  # Prepare the state for the DQN
             with torch.no_grad():
                 q_values = dqn[turn](state_tensor)  # Get Q-values from the DQN
             
             # Create a mask to filter out invalid moves
             possible_moves = game.get_possible_moves()  # Get valid moves from the game
-            print(possible_moves)
+            #print(possible_moves)
             mask = torch.zeros(BOARD_SIZE ** 4)  # Initialize the mask for all possible moves
             for move in possible_moves:
                 move_index = flatten_action(move)
@@ -157,7 +168,7 @@ def train_dqn():
             game.place_piece(cur_row, cur_col, new_row, new_col, turn)
             next_state = game.get_state_representation()
             done = game.is_over()
-            reward = ((100 if game.winning_team==turn else -100) if done else 10*len(game.kill_coords)) + turn==1
+            reward = ((100 if game.winning_team==turn else -100) if done else 10*len(game.kill_coords))# + turn==1
             
             # Store the experience in the replay buffer
             replay_buffer[turn].add((state, best_action, reward, next_state, done))
@@ -170,7 +181,7 @@ def train_dqn():
             episode_reward[turn] += reward  # Accumulate reward for the current player
         
         epsilon = max(min_epsilon, epsilon * epsilon_decay)
-        print(f'{game.winning_team} wins with reward {episode_reward[game.winning_team]} over {episode_reward[3-game.winning_team]}')
+        f'{episode_reward}\t{game.winning_team}'
     
     # Save the trained models for both players
     torch.save(dqn[1].state_dict(), 'models/trained_dqn_1.pth')
