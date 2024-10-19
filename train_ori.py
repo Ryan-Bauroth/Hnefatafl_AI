@@ -148,7 +148,7 @@ def train_dqn():
     optimizer = {i: optim.Adam(dqn[i].parameters(), lr=0.001) for i in (1, 2)}
     batch_size = 64
     gamma = 0.99  # Discount factor
-    epsilon_decay = 0.998  # Decay rate for epsilon
+    epsilon_decay = 0.995  # Decay rate for epsilon
     min_epsilon = 0.01  # Minimum epsilon
     start_episode, epsilon, replay_buffer = load_checkpoint(dqn, optimizer, 'model_ori.pth')
     num_episodes = 1000000  # Number of training episodes
@@ -160,10 +160,12 @@ def train_dqn():
         previous_state = None
         previous_action = None
         previous_reward = None
+        test_data = []
         while not game.is_over():
             move_i += 1
             turn = game.turn
             state = game.get_state_representation()
+            test_data.append(''.join(str(v) for v in state))
             '''print('—'*10)
             print(' \t' + ' '.join(str(v) for v in range(BOARD_SIZE)))
             for board_i in range(BOARD_SIZE):
@@ -176,7 +178,34 @@ def train_dqn():
             # Create a mask to filter out invalid moves
             possible_moves = game.get_possible_moves()  # Get valid moves from the game
             action_choice = None
-            if turn == 2:
+            if turn == 1:
+                for choice in possible_moves:
+                    cur_row, cur_col, new_row, new_col = choice
+                    # north king capture
+                    if new_col - 1 > 0 and new_col + 1 < BOARD_SIZE - 1 and new_row != BOARD_SIZE - 1 and new_row != 0:
+                        if game.board[new_row - 1][new_col] == 3 and (new_row - 2 < 0 or game.board[new_row - 2][new_col] == 1) and \
+                                game.board[new_row - 1][new_col - 1] == 1 and game.board[new_row - 1][new_col + 1] == 1:
+                            action_choice = flatten_action(choice)
+                            break
+                    # south king capture
+                    if new_col - 1 > 0 and new_col + 1 < BOARD_SIZE - 1 and new_row != BOARD_SIZE - 1 and new_row != 0:
+                        if game.board[new_row + 1][new_col] == 3 and (new_row + 2 > BOARD_SIZE - 1 or game.board[new_row + 2][new_col] == 1) and \
+                                game.board[new_row + 1][new_col - 1] == 1 and game.board[new_row + 1][new_col + 1] == 1:
+                            action_choice = flatten_action(choice)
+                            break
+                    # west king check
+                    if new_row - 1 > 0 and new_row + 1 < BOARD_SIZE - 1 and new_col != BOARD_SIZE - 1 and new_col != 0:
+                        if game.board[new_row][new_col - 1] == 3 and (new_col - 2 < 0 or game.board[new_row][new_col - 2] == 1) and \
+                                game.board[new_row - 1][new_col - 1] == 1 and game.board[new_row + 1][new_col - 1] == 1:
+                            action_choice = flatten_action(choice)
+                            break
+                    # east king check
+                    if new_row - 1 > 0 and new_row + 1 < BOARD_SIZE - 1 and new_col != BOARD_SIZE - 1 and new_col != 0:
+                        if game.board[new_row][new_col + 1] == 3 and (new_col + 2 > BOARD_SIZE - 1 or game.board[new_row][new_col + 2] == 1) and \
+                                game.board[new_row - 1][new_col + 1] == 1 and game.board[new_row + 1][new_col + 1] == 1:
+                            action_choice = flatten_action(choice)
+                            break
+            else:
                 for choice in possible_moves:
                     cur_row, cur_col, new_row, new_col = choice
                     if game.board[cur_row][cur_col] == 3:
@@ -212,21 +241,21 @@ def train_dqn():
             reward = 0
             if done:
                 if game.winning_team==turn:
-                    reward += 100
+                    reward += 200
                     if previous_reward is not None:
-                        previous_reward -= 100
+                        previous_reward -= 200
                 else:
-                    reward -= 100
+                    reward -= 200
                     if previous_reward is not None:
-                        previous_reward += 100
-            if turn == 1:
-                reward += 15 * len(game.kill_coords)
+                        previous_reward += 200
+            elif turn == 1:
+                reward += (30 * len(game.kill_coords)) if game.kill_coords else -15
                 if previous_reward is not None:
-                    previous_reward -= 15 * len(game.kill_coords)
+                    previous_reward -= (30 * len(game.kill_coords)) if game.kill_coords else -15
             else:
-                reward += 10 * len(game.kill_coords)
+                reward += (20 * len(game.kill_coords)) if game.kill_coords else -10
                 if previous_reward is not None:
-                    previous_reward -= 10 * len(game.kill_coords)
+                    previous_reward -= (20 * len(game.kill_coords)) if game.kill_coords else -10
             #reward = (150 if game.winning_team==turn else -150) if done else len(game.kill_coords) * 10#(10 if turn == 1 else 5)
             '''if turn == 1:
                 if (new_row > 0 and game.board[new_row-1][new_col]==3) or (new_row < BOARD_SIZE-1 and game.board[new_row+1][new_col]==3) or (new_col > 0 and game.board[new_row][new_col-1]==3) or (new_col < BOARD_SIZE-1 and game.board[new_row][new_col+1]==3):
@@ -251,10 +280,12 @@ def train_dqn():
             previous_reward = reward
             
             #episode_reward[turn] += reward  # Accumulate reward for the current player
-
+        
         epsilon = max(min_epsilon, epsilon * epsilon_decay)
-        print(f'{game.winning_team} wins episode {episode} in {move_i+1} moves with reward {episode_reward[game.winning_team]}')
+        print(f'{game.winning_team} wins episode {episode} in {move_i//2+1} moves with reward {episode_reward[game.winning_team]}')
         if episode % 100 == 99:
             save_checkpoint(dqn, optimizer, episode+1, epsilon, replay_buffer, 'model_ori.pth')
+            open('test_game.txt', 'w').write('\n'.join(test_data))
+
 
 train_dqn()
