@@ -7,6 +7,37 @@ from collections import deque
 from game import *
 from datetime import datetime as DateTime
 
+import os  # Add this to handle file checks and paths
+
+def save_checkpoint(dqn, optimizer, episode, epsilon, replay_buffer, filepath):
+    checkpoint = {
+        'dqn_1_state_dict': dqn[1].state_dict(),
+        'dqn_2_state_dict': dqn[2].state_dict(),
+        'optimizer_1_state_dict': optimizer[1].state_dict(),
+        'optimizer_2_state_dict': optimizer[2].state_dict(),
+        'episode': episode,
+        'epsilon': epsilon,
+        'replay_buffer_1': replay_buffer[1],
+        'replay_buffer_2': replay_buffer[2],
+    }
+    torch.save(checkpoint, filepath)
+
+def load_checkpoint(dqn, optimizer, filepath):
+    try:
+        checkpoint = torch.load(filepath)
+        dqn[1].load_state_dict(checkpoint['dqn_1_state_dict'])
+        dqn[2].load_state_dict(checkpoint['dqn_2_state_dict'])
+        optimizer[1].load_state_dict(checkpoint['optimizer_1_state_dict'])
+        optimizer[2].load_state_dict(checkpoint['optimizer_2_state_dict'])
+        episode = checkpoint['episode']
+        epsilon = checkpoint['epsilon']
+        replay_buffer = {1: checkpoint['replay_buffer_1'], 2: checkpoint['replay_buffer_2']}
+        print(f'Loaded checkpoint from episode {episode}')
+        return episode, epsilon, replay_buffer
+    except FileNotFoundError:
+        print('No checkpoint found, starting from scratch.')
+        return 0, 1.0, {i: ReplayBuffer(max_size=10000) for i in (1, 2)}  # Initialize new replay buffers if none exist
+
 class DQN(nn.Module):
     def __init__(self, input_size, output_size):
         super(DQN, self).__init__()
@@ -115,32 +146,27 @@ def unflatten_action(action):
 def train_dqn():
     dqn = {i: DQN(input_size=BOARD_SIZE ** 2, output_size=BOARD_SIZE ** 4) for i in (1, 2)}
     optimizer = {i: optim.Adam(dqn[i].parameters(), lr=0.001) for i in (1, 2)}
-    replay_buffer = {i: ReplayBuffer(max_size=10000) for i in (1, 2)}
     batch_size = 64
     gamma = 0.99  # Discount factor
-    epsilon = 1.0  # Exploration rate
-    epsilon_decay = 0.995  # Decay rate for epsilon
+    epsilon_decay = 0.998  # Decay rate for epsilon
     min_epsilon = 0.01  # Minimum epsilon
 
-    num_episodes = 1000  # Number of training episodes
-    for episode in range(num_episodes):
+    start_episode, epsilon, replay_buffer = load_checkpoint(dqn, optimizer, 'model_ori.pth')
+    num_episodes = 1000000  # Number of training episodes
+    for episode in range(start_episode, start_episode + num_episodes):
         game = Game()
         game.setup_board()
         episode_reward = {i: 0 for i in (1, 2)}
-        
-        temp_time = DateTime.now()
-        check_freq = 100
-        max_moves = 1000
-        for move_i in range(max_moves):
-            if game.is_over(): break
-            if move_i % check_freq == 0:
-                #print(f'{move_i}\t{(DateTime.now() - temp_time) / check_freq}')
-                temp_time = DateTime.now()
+        move_i = -1
+        while not game.is_over():
+            move_i += 1
             turn = game.turn
             state = game.get_state_representation()
             '''print('—'*10)
+            print(' \t' + ' '.join(str(v) for v in range(BOARD_SIZE)))
             for board_i in range(BOARD_SIZE):
-                print(' '.join(str(v) for v in state[BOARD_SIZE*board_i:BOARD_SIZE*(board_i+1)]))'''
+                print(f'{board_i}\t' + ' '.join(str(v) if v else ' ' for v in state[BOARD_SIZE*board_i:BOARD_SIZE*(board_i+1)]))
+            input()'''
             state_tensor = torch.FloatTensor(state).unsqueeze(0)  # Prepare the state for the DQN
             with torch.no_grad():
                 q_values = dqn[turn](state_tensor)  # Get Q-values from the DQN
@@ -148,30 +174,43 @@ def train_dqn():
             # Create a mask to filter out invalid moves
             possible_moves = game.get_possible_moves()  # Get valid moves from the game
             #print(possible_moves)
-            mask = torch.zeros(BOARD_SIZE ** 4)  # Initialize the mask for all possible moves
-            for move in possible_moves:
-                move_index = flatten_action(move)
-                mask[move_index] = 1  # Set valid moves to 1 in the mask
-            
-            # Apply the mask to the Q-values (invalid moves get a Q-value of -inf)
-            masked_q_values = q_values * mask + (1 - mask) * -float('inf')
+            #print(possible_moves)
             # Choose action based on exploration strategy
             if random.random() < epsilon:  # Exploration
-                best_action = flatten_action(random.choice(possible_moves))
+                choice = random.choice(possible_moves)
+                #print(choice)
+                cur_row, cur_col, new_row, new_col = choice
+                action_choice = flatten_action(choice)
             else:  # Exploitation
-                best_action = torch.argmax(masked_q_values).item()
+                mask = torch.zeros(BOARD_SIZE ** 4)  # Initialize the mask for all possible moves
+                for move in possible_moves:
+                    move_index = flatten_action(move)
+                    mask[move_index] = 1  # Set valid moves to 1 in the mask
+                
+                # Apply the mask to the Q-values (invalid moves get a Q-value of -inf)
+                masked_q_values = q_values * mask + (1 - mask) * -float('inf')
+                
+                action_choice = torch.argmax(masked_q_values).item()
             
-            # Convert the action index back to (current_row, current_col, new_row, new_col)
-            cur_row, cur_col, new_row, new_col = unflatten_action(best_action)
-            
+                # Convert the action index back to (current_row, current_col, new_row, new_col)
+                cur_row, cur_col, new_row, new_col = unflatten_action(action_choice)
+            '''original_board = [row[:] for row in game.board]
+            for possible_move in possible_moves:
+                print(game.check_kills(possible_move[2], possible_move[3], turn))
+                game.board = [row[:] for row in original_board]'''
             # Apply the chosen action to the game
-            game.place_piece(cur_row, cur_col, new_row, new_col, turn)
+            game.place_piece(new_col, new_row, cur_row, cur_col, game.board[cur_row][cur_col])
             next_state = game.get_state_representation()
             done = game.is_over()
-            reward = ((100 if game.winning_team==turn else -100) if done else 10*len(game.kill_coords))# + turn==1
-            
+            #print(game.turn)
+            reward = (150 if game.winning_team==turn else -150) if done else len(game.kill_coords) * 10#(10 if turn == 1 else 5)
+            '''if turn == 1:
+                if (new_row > 0 and game.board[new_row-1][new_col]==3) or (new_row < BOARD_SIZE-1 and game.board[new_row+1][new_col]==3) or (new_col > 0 and game.board[new_row][new_col-1]==3) or (new_col < BOARD_SIZE-1 and game.board[new_row][new_col+1]==3):
+                    reward += 1'''
+            #reward += 1 if turn == 1 else 0
+            #print(reward)
             # Store the experience in the replay buffer
-            replay_buffer[turn].add((state, best_action, reward, next_state, done))
+            replay_buffer[turn].add((state, action_choice, reward, next_state, done))
             
             # Train the DQN if enough experiences are in the buffer
             if replay_buffer[turn].size() > batch_size:
@@ -181,9 +220,8 @@ def train_dqn():
             episode_reward[turn] += reward  # Accumulate reward for the current player
 
         epsilon = max(min_epsilon, epsilon * epsilon_decay)
-        print(f'{episode_reward}\t{game.winning_team}')
-    
-    # Save the trained models for both players
-    torch.save(dqn[1].state_dict(), 'models/trained_dqn_1.pth')
-    torch.save(dqn[2].state_dict(), 'models/trained_dqn_2.pth')
+        print(f'{game.winning_team} wins episode {episode} in {move_i+1} moves with rewards {episode_reward}')
+        if episode % 100 == 99:
+            save_checkpoint(dqn, optimizer, episode+1, epsilon, replay_buffer, 'model_ori.pth')
+
 train_dqn()
