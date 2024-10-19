@@ -150,7 +150,6 @@ def train_dqn():
     gamma = 0.99  # Discount factor
     epsilon_decay = 0.998  # Decay rate for epsilon
     min_epsilon = 0.01  # Minimum epsilon
-
     start_episode, epsilon, replay_buffer = load_checkpoint(dqn, optimizer, 'model_ori.pth')
     num_episodes = 1000000  # Number of training episodes
     for episode in range(start_episode, start_episode + num_episodes):
@@ -158,6 +157,9 @@ def train_dqn():
         game.setup_board()
         episode_reward = {i: 0 for i in (1, 2)}
         move_i = -1
+        previous_state = None
+        previous_action = None
+        previous_reward = None
         while not game.is_over():
             move_i += 1
             turn = game.turn
@@ -173,54 +175,85 @@ def train_dqn():
             
             # Create a mask to filter out invalid moves
             possible_moves = game.get_possible_moves()  # Get valid moves from the game
-            #print(possible_moves)
-            #print(possible_moves)
-            # Choose action based on exploration strategy
-            if random.random() < epsilon:  # Exploration
-                choice = random.choice(possible_moves)
-                #print(choice)
-                cur_row, cur_col, new_row, new_col = choice
-                action_choice = flatten_action(choice)
-            else:  # Exploitation
-                mask = torch.zeros(BOARD_SIZE ** 4)  # Initialize the mask for all possible moves
-                for move in possible_moves:
-                    move_index = flatten_action(move)
-                    mask[move_index] = 1  # Set valid moves to 1 in the mask
+            action_choice = None
+            if turn == 2:
+                for choice in possible_moves:
+                    cur_row, cur_col, new_row, new_col = choice
+                    if game.board[cur_row][cur_col] == 3:
+                        if (new_row, new_col) in CORNERS:
+                            action_choice = flatten_action(choice)
+                            break
+            if action_choice is None:
+                # Choose action based on exploration strategy
+                if random.random() < epsilon:  # Exploration
+                    choice = random.choice(possible_moves)
+                    #print(choice)
+                    cur_row, cur_col, new_row, new_col = choice
+                    action_choice = flatten_action(choice)
+                else:  # Exploitation
+                    mask = torch.zeros(BOARD_SIZE ** 4)  # Initialize the mask for all possible moves
+                    for move in possible_moves:
+                        move_index = flatten_action(move)
+                        mask[move_index] = 1  # Set valid moves to 1 in the mask
+                    
+                    # Apply the mask to the Q-values (invalid moves get a Q-value of -inf)
+                    masked_q_values = q_values * mask + (1 - mask) * -float('inf')
+                    
+                    action_choice = torch.argmax(masked_q_values).item()
                 
-                # Apply the mask to the Q-values (invalid moves get a Q-value of -inf)
-                masked_q_values = q_values * mask + (1 - mask) * -float('inf')
-                
-                action_choice = torch.argmax(masked_q_values).item()
-            
-                # Convert the action index back to (current_row, current_col, new_row, new_col)
-                cur_row, cur_col, new_row, new_col = unflatten_action(action_choice)
-            '''original_board = [row[:] for row in game.board]
-            for possible_move in possible_moves:
-                print(game.check_kills(possible_move[2], possible_move[3], turn))
-                game.board = [row[:] for row in original_board]'''
+                    # Convert the action index back to (current_row, current_col, new_row, new_col)
+                    cur_row, cur_col, new_row, new_col = unflatten_action(action_choice)
+
             # Apply the chosen action to the game
             game.place_piece(new_col, new_row, cur_row, cur_col, game.board[cur_row][cur_col])
-            next_state = game.get_state_representation()
+            #next_state = game.get_state_representation()
             done = game.is_over()
             #print(game.turn)
-            reward = (150 if game.winning_team==turn else -150) if done else len(game.kill_coords) * 10#(10 if turn == 1 else 5)
+            reward = 0
+            if done:
+                if game.winning_team==turn:
+                    reward += 100
+                    if previous_reward is not None:
+                        previous_reward -= 100
+                else:
+                    reward -= 100
+                    if previous_reward is not None:
+                        previous_reward += 100
+            if turn == 1:
+                reward += 15 * len(game.kill_coords)
+                if previous_reward is not None:
+                    previous_reward -= 15 * len(game.kill_coords)
+            else:
+                reward += 10 * len(game.kill_coords)
+                if previous_reward is not None:
+                    previous_reward -= 10 * len(game.kill_coords)
+            #reward = (150 if game.winning_team==turn else -150) if done else len(game.kill_coords) * 10#(10 if turn == 1 else 5)
             '''if turn == 1:
                 if (new_row > 0 and game.board[new_row-1][new_col]==3) or (new_row < BOARD_SIZE-1 and game.board[new_row+1][new_col]==3) or (new_col > 0 and game.board[new_row][new_col-1]==3) or (new_col < BOARD_SIZE-1 and game.board[new_row][new_col+1]==3):
                     reward += 1'''
             #reward += 1 if turn == 1 else 0
             #print(reward)
             # Store the experience in the replay buffer
-            replay_buffer[turn].add((state, action_choice, reward, next_state, done))
-            
+            if done:
+                next_state = game.get_state_representation()
+                replay_buffer[turn].add((state, action_choice, reward, next_state, done))
+                episode_reward[turn] += reward
+            if previous_reward is not None:
+                replay_buffer[3-turn].add((previous_state, previous_action, previous_reward, state, done))
+                episode_reward[3-turn] += previous_reward
             # Train the DQN if enough experiences are in the buffer
             if replay_buffer[turn].size() > batch_size:
                 batch = replay_buffer[turn].sample(batch_size)
                 train_on_batch(batch, dqn[turn], optimizer[turn], gamma)
             
-            episode_reward[turn] += reward  # Accumulate reward for the current player
+            previous_state = state
+            previous_action = action_choice
+            previous_reward = reward
+            
+            #episode_reward[turn] += reward  # Accumulate reward for the current player
 
         epsilon = max(min_epsilon, epsilon * epsilon_decay)
-        print(f'{game.winning_team} wins episode {episode} in {move_i+1} moves with rewards {episode_reward}')
+        print(f'{game.winning_team} wins episode {episode} in {move_i+1} moves with reward {episode_reward[game.winning_team]}')
         if episode % 100 == 99:
             save_checkpoint(dqn, optimizer, episode+1, epsilon, replay_buffer, 'model_ori.pth')
 
