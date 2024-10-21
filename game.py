@@ -1,11 +1,13 @@
-import os
+"""
+Game class of Hnefatafl
+:authors: ryfi, mooreo
+"""
+
 import time
 
 import pygame
 import sys
 from pygame import gfxdraw
-
-from deep_learning import DQNAgent
 
 # Constants
 BOARD_TILES = 11
@@ -92,6 +94,12 @@ class Game:
 
 
     def reset(self):
+        """
+        Resets the game state to its initial condition. This method reinitializes the game board, clears all move records, resets turn counter,
+        and reestablishes initial game settings. It should be called to start a new game or to reset the current game.
+
+        :return: The current state representation of the board after resetting.
+        """
         self.board = [[0 for _ in range(BOARD_TILES)] for _ in range(BOARD_TILES)]
         self.recent_move_coords = {}
         self.piece_arr = []
@@ -112,6 +120,10 @@ class Game:
         return self.get_state_representation()
 
     def update_episode(self, episode):
+        """
+        :param episode: The current episode number to be displayed.
+        :return: None
+        """
         font = pygame.font.Font(None, 48)  # None uses the default font
         text_surface = font.render("Episode " + str(episode), True, BLACK)
         scaled_surface = pygame.transform.scale(text_surface, (int(text_surface.get_width() * .5), int(text_surface.get_height() * .5)))
@@ -127,6 +139,10 @@ class Game:
         return flat_board
 
     def get_reward(self, player):
+        """
+        :param player: The identifier of the player for whom the reward is being calculated.
+        :return: The reward for the given player. Returns 1 if the player is on the winning team, -1 if not on the winning team and the winning team is not neutral, otherwise returns a predefined reward value for the player.
+        """
         if player == self.winning_team:
             return 1
         elif self.winning_team != 0:
@@ -135,6 +151,11 @@ class Game:
             return self.reward_vals[player]
 
     def is_over(self):
+        """
+        Checks if the game is over by evaluating the current game status.
+
+        :return: True if the game is over, otherwise False
+        """
         if self.check_king_win():
             self.winning_team = 2
             return True
@@ -178,6 +199,9 @@ class Game:
         return moves
 
     def get_possible_moves(self):
+        """
+        :return: A list of all possible moves for the current player's turn. Each move is represented as a tuple containing the row and column of the piece, and the target row and column for the piece's move.
+        """
         all_possible_moves = []
         for row in range(BOARD_TILES):
             for col in range(BOARD_TILES):
@@ -194,13 +218,10 @@ class Game:
 
     def place_piece(self, grid_x, grid_y, row, col, piece):
         """
-        Places a piece on the board and handles necessary updates
-        -> Input goes Col, Row, Row, Col because I am a crappy designer
-
-        :param grid_x: The x-coordinate on the grid where the piece is to be placed.
-        :param grid_y: The y-coordinate on the grid where the piece is to be placed.
-        :param row: The current row of the piece before being moved.
-        :param col: The current column of the piece before being moved.
+        :param grid_x: The x-coordinate on the game board where the piece will be placed.
+        :param grid_y: The y-coordinate on the game board where the piece will be placed.
+        :param row: The original row coordinate from where the piece is moved.
+        :param col: The original column coordinate from where the piece is moved.
         :param piece: The game piece to be placed on the board.
         :return: None
         """
@@ -284,6 +305,11 @@ class Game:
         return kill_coords
 
     def check_king_win(self):
+        """
+        Checks if the king piece has reached any of the corner positions on the board, which signifies a win.
+
+        :return: True if the king is in one of the corner positions, False otherwise
+        """
         for row, col in CORNERS:
             if self.board[row][col] == 3:
                 return True
@@ -427,6 +453,10 @@ class Game:
         }
 
     def bot_action(self, bot):
+        """
+        :param bot: The bot object that performs an action based on the current state representation.
+        :return: None
+        """
         time.sleep(.1)
         action = bot.act(self.get_state_representation(), self)
         grid_x = action[3]

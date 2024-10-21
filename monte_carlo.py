@@ -1,3 +1,5 @@
+# no longer used
+
 import threading
 
 from mctspy.games.common import TwoPlayersAbstractGameState

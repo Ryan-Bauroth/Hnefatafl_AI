@@ -1,5 +1,10 @@
-import os
+"""
+Runs trained models on a game
 
+:author: ryfi
+"""
+
+import os
 from game import Game
 from deep_learning import DQNAgent
 

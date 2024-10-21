@@ -1,3 +1,5 @@
+# class for saving games in hpgn format
+
 GAME_NAME = "Hnefatafl"
 GAME_RESULTS = ["0-0", "1-0", "0-1"]
 
