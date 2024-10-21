@@ -11,46 +11,27 @@ import os  # Add this to handle file checks and paths
 
 class Simulator:
     def __init__(self, game, depth):
-        self.depth = depth * 2
-        #self.max_nodes = max_nodes
+        self.depth = depth
         self.turn = game.turn
-        self.reward = {root: [] for root in game.get_possible_moves()}
+        self.reward = {root: [] for root in game.get_possible_actions()}
         self._run_sim(game)
-    def _run_sim(self, game, depth=0, reward_so_far=0, root=None, coords_check=None):
-        depth += 1
-        keys_by_piece = {}
-        for key in game.get_possible_moves():
-            piece = key[0], key[1]
-            if piece not in keys_by_piece: keys_by_piece[piece] = []
-            keys_by_piece[piece].append(key)
-        rewards = {}
-        new_games = {}
-        for keys in keys_by_piece.values():
-            for key in keys:
-                rewards[key] = reward_so_far
-                new_games[key] = Game()
-                new_games[key].board = [row[:] for row in game.board]
-                new_games[key].turn = game.turn
-                new_game = new_games[key]
-                cur_row, cur_col, new_row, new_col = key
-                new_game.place_piece(new_col, new_row, cur_row, cur_col, new_game.board[cur_row][cur_col])
-                rewards[key] += (30 if game.turn == 1 else 20) * len(new_game.kill_coords) * (1 if self.turn==game.turn else -1)
-        max_val = max(max(rewards[key] for key in keys) for _, keys in keys_by_piece.items())
-        for piece, keys in keys_by_piece.items():
-            random.shuffle(keys)
-            keys.sort(key=lambda x: rewards[x], reverse=self.turn==game.turn)
-            key = keys[0]
-            new_game = new_games[key]
-            if new_game.is_over():
-                rewards[key] += 250 * (1 if new_game.winning_team == self.turn else -1)
-                self.reward[root].append(rewards[key])
-            elif depth == self.depth:
-                self.reward[root].append(rewards[key])
-            elif coords_check is None or coords_check in new_game.kill_coords:
-                self._run_sim(new_game, depth, rewards[key], key if root is None else root, (key[2], key[3]) if rewards[key]==max_val or random.random() < 0.1 else None)
+    def _run_sim(self, game, depth=0, reward_so_far=0, root=None):
+        new_game = Game()
+        new_game.board = [row[:] for row in game.board]
+        new_game.turn = game.turn
+        for possible_move in new_game.get_possible_moves():
+            cur_row, cur_col, new_row, new_col = possible_move
+            new_game.place_piece(new_col, new_row, cur_row, cur_col, new_game.board[cur_row][cur_col])
+            reward_so_far += (30 if game.turn == 1 else 20) * len(new_game.kill_coords) * (1 if self.turn==game.turn else -1)
+            if game.is_over():
+                reward_so_far += 200 * (1 if new_game.winning_team == self.turn else -1)
+                self.reward[root].append(reward_so_far)
+            elif depth + 1 == self.depth:
+                self.reward[root].append(reward_so_far)
+            else:
+                self._run_sim(new_game, depth + 1, reward_so_far, possible_move if root is None else root)
     def best_moves(self):
-        mins = {key: min(val) for key, val in self.reward.items() if val}
-        #input({key: mins[key] for key in sorted(list(mins), key=mins.get, reverse=True)})
+        mins = {key: min(val) for key, val in self.reward.items()}
         max_min = max(mins.values())
         return [key for key, val in mins.items() if val == max_min]
 
@@ -135,20 +116,57 @@ def unflatten_action(action):
 
 def select_action(game, policy_net, epsilon):
     """Selects an action using epsilon-greedy policy."""
-    best_moves = Simulator(game, 2).best_moves()
+    possible_moves = game.get_possible_moves()  # Get valid moves from the game
+    if game.turn == 1:
+        for choice in possible_moves:
+            cur_row, cur_col, new_row, new_col = choice
+            # north king capture
+            if new_col - 1 > 0 and new_col + 1 < BOARD_SIZE - 1 and new_row != BOARD_SIZE - 1 and new_row != 0:
+                if game.board[new_row - 1][new_col] == 3 and (
+                  new_row - 2 < 0 or game.board[new_row - 2][new_col] == 1) and \
+                  game.board[new_row - 1][new_col - 1] == 1 and game.board[new_row - 1][new_col + 1] == 1:
+                    return flatten_action(choice)
+            # south king capture
+            if new_col - 1 > 0 and new_col + 1 < BOARD_SIZE - 1 and new_row != BOARD_SIZE - 1 and new_row != 0:
+                if game.board[new_row + 1][new_col] == 3 and (
+                  new_row + 2 > BOARD_SIZE - 1 or game.board[new_row + 2][new_col] == 1) and \
+                  game.board[new_row + 1][new_col - 1] == 1 and game.board[new_row + 1][new_col + 1] == 1:
+                    return flatten_action(choice)
+            # west king check
+            if new_row - 1 > 0 and new_row + 1 < BOARD_SIZE - 1 and new_col != BOARD_SIZE - 1 and new_col != 0:
+                if game.board[new_row][new_col - 1] == 3 and (
+                  new_col - 2 < 0 or game.board[new_row][new_col - 2] == 1) and \
+                  game.board[new_row - 1][new_col - 1] == 1 and game.board[new_row + 1][new_col - 1] == 1:
+                    return flatten_action(choice)
+            # east king check
+            if new_row - 1 > 0 and new_row + 1 < BOARD_SIZE - 1 and new_col != BOARD_SIZE - 1 and new_col != 0:
+                if game.board[new_row][new_col + 1] == 3 and (
+                  new_col + 2 > BOARD_SIZE - 1 or game.board[new_row][new_col + 2] == 1) and \
+                  game.board[new_row - 1][new_col + 1] == 1 and game.board[new_row + 1][new_col + 1] == 1:
+                    return flatten_action(choice)
+    else:
+        for choice in possible_moves:
+            cur_row, cur_col, new_row, new_col = choice
+            if game.board[cur_row][cur_col] == 3:
+                if (new_row, new_col) in CORNERS:
+                    return flatten_action(choice)
+    possible_captures = get_possible_captures(game)
     if random.random() >= epsilon:
         with torch.no_grad():
             # Select action with highest Q-value
             k = random.randrange(4)
             q_values = policy_net[game.turn](torch.tensor([multi_channel_board_representation(rotate_board(game.board, k))], dtype=torch.float32))
             mask = torch.zeros(BOARD_SIZE ** 4)  # Initialize the mask for all possible moves
-            for move in best_moves:
+            for move in possible_moves:
                 move_index = flatten_action(rotate_action(move, k))
                 mask[move_index] = 1  # Set valid moves to 1 in the mask
             masked_q_values = q_values * mask + (1 - mask) * -float('inf')
             return flatten_action(rotate_action(unflatten_action(masked_q_values.max(1)[1].item()), 4-k))  # Return action with max Q-value
     else:
-        return flatten_action(random.choice(best_moves))
+        if possible_captures and random.random() < 0.9:
+            return flatten_action(random.choice(possible_captures))
+        else:
+            return flatten_action(random.choice(possible_moves))
 
 def ori_model():
     trainer = Trainer()
@@ -272,6 +290,7 @@ class Trainer:
                 
                 next_board = [row[:] for row in game.board]
                 done = game.is_over()
+                could_capture = len(get_possible_captures(game)) > 0
                 reward = 0
                 if done:
                     if game.winning_team==turn:
@@ -283,11 +302,15 @@ class Trainer:
                         if previous_reward is not None:
                             previous_reward += 250
                 elif turn == 1:
-                    reward += (30 * len(game.kill_coords)) if game.kill_coords else -6
+                    reward += (30 * len(game.kill_coords)) if game.kill_coords else (-15 if could_capture else -6)
+                    if previous_reward is not None:
+                        previous_reward -= 30 * could_capture
                 else:
-                    reward += (20 * len(game.kill_coords)) if game.kill_coords else -4
+                    reward += (20 * len(game.kill_coords)) if game.kill_coords else (-10 if could_capture else -4)
+                    if previous_reward is not None:
+                        previous_reward -= 20 * could_capture
                 test_data.append(f"{''.join(str(v) for v in flatten_board(board))}{previous_reward}")
-                print(test_data[-1])
+                #print(test_data[-1])
         
                 # Store the transition in replay memory
                 if previous_reward is not None:
