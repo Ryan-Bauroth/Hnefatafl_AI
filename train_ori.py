@@ -11,12 +11,13 @@ import os  # Add this to handle file checks and paths
 
 class Simulator:
     def __init__(self, game, depth):
-        self.depth = depth * 2
+        self.depth = depth
         #self.max_nodes = max_nodes
         self.turn = game.turn
+        #print(game.get_possible_moves())
         self.reward = {root: [] for root in game.get_possible_moves()}
         self._run_sim(game)
-    def _run_sim(self, game, depth=0, reward_so_far=0, root=None, coords_check=None):
+    def _run_sim(self, game, depth=0, reward_so_far=0, root=None):
         depth += 1
         keys_by_piece = {}
         for key in game.get_possible_moves():
@@ -35,22 +36,27 @@ class Simulator:
                 cur_row, cur_col, new_row, new_col = key
                 new_game.place_piece(new_col, new_row, cur_row, cur_col, new_game.board[cur_row][cur_col])
                 rewards[key] += (30 if game.turn == 1 else 20) * len(new_game.kill_coords) * (1 if self.turn==game.turn else -1)
-        max_val = max(max(rewards[key] for key in keys) for _, keys in keys_by_piece.items())
-        for piece, keys in keys_by_piece.items():
-            random.shuffle(keys)
-            keys.sort(key=lambda x: rewards[x], reverse=self.turn==game.turn)
-            key = keys[0]
+        all_keys = list(rewards)
+        random.shuffle(all_keys)
+        moves = []
+        if depth == 1:
+            for piece, keys in keys_by_piece.items():
+                random.shuffle(keys)
+                moves.append(max(keys, key=lambda x: rewards[x] * (1 if self.turn == game.turn else -1)))
+        else:
+            moves.append(max(list(rewards), key=lambda x: rewards[x] * (1 if self.turn==game.turn else -1)))
+        for key in moves:
             new_game = new_games[key]
             if new_game.is_over():
                 rewards[key] += 250 * (1 if new_game.winning_team == self.turn else -1)
-                self.reward[root].append(rewards[key])
+                self.reward[key if root is None else root].append(rewards[key])
             elif depth == self.depth:
-                self.reward[root].append(rewards[key])
-            elif coords_check is None or coords_check in new_game.kill_coords:
-                self._run_sim(new_game, depth, rewards[key], key if root is None else root, (key[2], key[3]) if rewards[key]==max_val or random.random() < 0.1 else None)
+                self.reward[key if root is None else root].append(rewards[key])
+            else:
+                self._run_sim(new_game, depth, rewards[key], key if root is None else root)
     def best_moves(self):
         mins = {key: min(val) for key, val in self.reward.items() if val}
-        #input({key: mins[key] for key in sorted(list(mins), key=mins.get, reverse=True)})
+        #print({key: mins[key] for key in sorted(list(mins), key=mins.get, reverse=True)})
         max_min = max(mins.values())
         return [key for key, val in mins.items() if val == max_min]
 
@@ -135,7 +141,16 @@ def unflatten_action(action):
 
 def select_action(game, policy_net, epsilon):
     """Selects an action using epsilon-greedy policy."""
-    best_moves = Simulator(game, 2).best_moves()
+    if epsilon:
+        best_moves = Simulator(game, 1).best_moves() if random.random() < epsilon else Simulator(game, 2).best_moves()
+    else:
+        depth = 2
+        pieces_down = sum(v > 0 for v in flatten_board(game.board))
+        if pieces_down < 10:
+            depth = 4
+        elif pieces_down < 20:
+            depth = 3
+        best_moves = Simulator(game, depth).best_moves()
     if random.random() >= epsilon:
         with torch.no_grad():
             # Select action with highest Q-value
@@ -200,7 +215,7 @@ class Trainer:
         self.gamma = 0.99  # Discount factor
         self.epsilon_start = 1.0
         self.epsilon_end = 0.01
-        self.epsilon_decay = 0.999
+        self.epsilon_decay = 0.995
         self.target_update_freq = 10  # How often to update target network
         self.memory_capacity = 10000
         self.learning_rate = 1e-3
@@ -287,7 +302,7 @@ class Trainer:
                 else:
                     reward += (20 * len(game.kill_coords)) if game.kill_coords else -4
                 test_data.append(f"{''.join(str(v) for v in flatten_board(board))}{previous_reward}")
-                print(test_data[-1])
+                #print(test_data[-1])
         
                 # Store the transition in replay memory
                 if previous_reward is not None:
