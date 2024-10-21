@@ -1,11 +1,18 @@
+import os
+import time
+
 import pygame
 import sys
 from pygame import gfxdraw
 
+from deep_learning import DQNAgent
+
 # Constants
-BOARD_SIZE = 11
+BOARD_TILES = 11
 TILE_SIZE = 60
-WINDOW_SIZE = BOARD_SIZE * TILE_SIZE
+BOARD_SIZE = BOARD_TILES * TILE_SIZE
+WINDOW_SIZE = (BOARD_SIZE, BOARD_SIZE + 50)
+BOARD_STARTING_COORDS = [0, 0]
 FPS = 60
 
 # Color Constants
@@ -28,8 +35,8 @@ BOARD_START = [
     [1,0,0,0,2,2],
     [1,1,0,2,2,3]
 ]
-CORNERS = [(0, 0), (0, BOARD_SIZE-1), (BOARD_SIZE-1, 0), (BOARD_SIZE-1, BOARD_SIZE-1)]
-CENTER = (BOARD_SIZE // 2, BOARD_SIZE // 2)
+CORNERS = [(0, 0), (0, BOARD_TILES - 1), (BOARD_TILES - 1, 0), (BOARD_TILES - 1, BOARD_TILES - 1)]
+CENTER = (BOARD_TILES // 2, BOARD_TILES // 2)
 
 # Load piece images and scale them to fit the tile size
 attacker_img = pygame.image.load('pieces/attacker.png')
@@ -42,12 +49,12 @@ king_img = pygame.image.load('pieces/king.png')
 king_img = pygame.transform.smoothscale(king_img, (TILE_SIZE - 10, TILE_SIZE - 10))
 
 # Create the Pygame window
-screen = pygame.display.set_mode((WINDOW_SIZE, WINDOW_SIZE))
+screen = pygame.display.set_mode(WINDOW_SIZE)
 pygame.display.set_caption("Hnefatafl")
 
 class Game:
     def __init__(self):
-        self.board = [[0 for _ in range(BOARD_SIZE)] for _ in range(BOARD_SIZE)]
+        self.board = [[0 for _ in range(BOARD_TILES)] for _ in range(BOARD_TILES)]
         self.recent_move_coords = {}
         self.clear_field_colors()
         self.piece_arr = []
@@ -55,9 +62,17 @@ class Game:
         self.kill_coords = []
         self.possible_moves = []
         self.winning_team = 0
+        self.mode = "playing"
+        self.botone = None
+        self.bottwo = None
+        self.episode = 0
         self.reward_vals = {
             1: 0,
             2: 0,
+        }
+        self.prev_move = {
+            1: [-1, -1, -1, -1],
+            2: [-1, -1, -1, -1]
         }
 
     def setup_board(self):
@@ -74,8 +89,10 @@ class Game:
                 self.board[-row-1][-col-1] = val
                 self.board[row][-col-1] = val
 
+
+
     def reset(self):
-        self.board = [[0 for _ in range(BOARD_SIZE)] for _ in range(BOARD_SIZE)]
+        self.board = [[0 for _ in range(BOARD_TILES)] for _ in range(BOARD_TILES)]
         self.recent_move_coords = {}
         self.piece_arr = []
         self.turn = 1
@@ -86,9 +103,21 @@ class Game:
             1: 0,
             2: 0,
         }
+        self.prev_move = {
+            1: [0, 0, 0, 0],
+            2: [0, 0, 0, 0]
+        }
         self.clear_field_colors()
         self.setup_board()
         return self.get_state_representation()
+
+    def update_episode(self, episode):
+        font = pygame.font.Font(None, 48)  # None uses the default font
+        text_surface = font.render("Episode " + str(episode), True, BLACK)
+        scaled_surface = pygame.transform.scale(text_surface, (int(text_surface.get_width() * .5), int(text_surface.get_height() * .5)))
+        text_rect = scaled_surface.get_rect(center=(BOARD_SIZE // 2, BOARD_SIZE + (WINDOW_SIZE[1] - BOARD_SIZE) // 2))
+        screen.blit(scaled_surface, text_rect)
+
 
     def get_state_representation(self):
         # Flatten the board for input into a neural network
@@ -127,7 +156,7 @@ class Game:
                     moves.append((r, col))
             else:
                 break
-        for r in range(row + 1, BOARD_SIZE):
+        for r in range(row + 1, BOARD_TILES):
             if self.board[r][col] == 0:
                 if piece == 3 or ((r, col) not in CORNERS and (r, col) != CENTER):
                     moves.append((r, col))
@@ -139,7 +168,7 @@ class Game:
                     moves.append((row, c))
             else:
                 break
-        for c in range(col + 1, BOARD_SIZE):
+        for c in range(col + 1, BOARD_TILES):
             if self.board[row][c] == 0:
                 if piece == 3 or ((row, c) not in CORNERS and (row, c) != CENTER):
                     moves.append((row, c))
@@ -150,8 +179,8 @@ class Game:
 
     def get_possible_moves(self):
         all_possible_moves = []
-        for row in range(BOARD_SIZE):
-            for col in range(BOARD_SIZE):
+        for row in range(BOARD_TILES):
+            for col in range(BOARD_TILES):
                 if self.board[row][col] == self.turn:
                     piece_moves = self.get_piece_possible_moves(col, row, self.turn)
                     for move in piece_moves:
@@ -179,6 +208,12 @@ class Game:
         self.board[grid_y][grid_x] = piece
         # if the piece is not going back to its og location, change turns
         if not (grid_y == row and grid_x == col):
+            # if self.prev_move[self.turn] == [grid_x, grid_y, roxw, col]:
+            #     self.reward_vals[self.turn] -= .075
+            if self.turn == 1:
+                self.reward_vals[self.turn] += .00005
+            else:
+                self.reward_vals[self.turn] -= .00005
             self.reward_vals[self.turn] = 0
             self.board[row][col] = 0
             self.kill_coords = self.check_kills(grid_y, grid_x, piece)
@@ -190,6 +225,7 @@ class Game:
             }
             self.possible_moves = []
             self.turn = 3 - self.turn
+            self.prev_move[self.turn] = [grid_x, grid_y, row, col]
             if not self.get_possible_moves():
                 self.winning_team = piece
 
@@ -210,7 +246,7 @@ class Game:
                 self.board[row-1][col] = 0
                 kill_coords.append((row-1, col))
         # south direction check
-        if row+2 <= BOARD_SIZE-1:
+        if row+2 <= BOARD_TILES-1:
             if self.board[row+1][col] == enemy_piece and (self.board[row+2][col] == piece or (row+2, col) in CORNERS):
                 self.board[row+1][col] = 0
                 kill_coords.append((row+1, col))
@@ -220,27 +256,27 @@ class Game:
                 self.board[row][col-1] = 0
                 kill_coords.append((row, col-1))
         # east direction check
-        if col+2 <= BOARD_SIZE-1:
+        if col+2 <= BOARD_TILES-1:
             if self.board[row][col + 1] == enemy_piece and (self.board[row][col + 2] == piece or (row, col + 2) in CORNERS):
                 self.board[row][col+1] = 0
                 kill_coords.append((row, col+1))
         # king checks
         if piece == 1:
             # north king capture
-            if col-1 > 0 and col+1 < BOARD_SIZE-1 and row != BOARD_SIZE-1 and row != 0:
+            if col-1 > 0 and col+1 < BOARD_TILES-1 and row != BOARD_TILES-1 and row != 0:
                 if self.board[row-1][col] == 3 and (row-2 < 0 or self.board[row-2][col] == 1) and self.board[row-1][col-1] == 1 and self.board[row-1][col+1] == 1:
                     self.winning_team = 1
             # south king capture
-            if col-1 > 0 and col+1 < BOARD_SIZE-1 and row != BOARD_SIZE-1 and row != 0:
-                if self.board[row+1][col] == 3 and (row+2 > BOARD_SIZE-1 or self.board[row+2][col] == piece) and self.board[row+1][col-1] == 1 and self.board[row+1][col+1] == 1:
+            if col-1 > 0 and col+1 < BOARD_TILES-1 and row != BOARD_TILES-1 and row != 0:
+                if self.board[row+1][col] == 3 and (row + 2 > BOARD_TILES - 1 or self.board[row + 2][col] == piece) and self.board[row + 1][col - 1] == 1 and self.board[row + 1][col + 1] == 1:
                     self.winning_team = 1
             # west king check
-            if row-1 > 0 and row+1 < BOARD_SIZE-1 and col != BOARD_SIZE-1 and col != 0:
+            if row-1 > 0 and row+1 < BOARD_TILES-1 and col != BOARD_TILES-1 and col != 0:
                 if self.board[row][col-1] == 3 and (col-2 < 0 or self.board[row][col-2] == piece) and self.board[row-1][col-1] == 1 and self.board[row+1][col-1] == 1:
                     self.winning_team = 1
             # east king check
-            if row-1 > 0 and row+1 < BOARD_SIZE-1 and col != BOARD_SIZE-1 and col != 0:
-                if self.board[row][col+1] == 3 and (col+2 > BOARD_SIZE-1 or self.board[row][col+2] == piece) and self.board[row-1][col+1] == 1 and self.board[row+1][col+1] == 1:
+            if row-1 > 0 and row+1 < BOARD_TILES-1 and col != BOARD_TILES-1 and col != 0:
+                if self.board[row][col+1] == 3 and (col + 2 > BOARD_TILES - 1 or self.board[row][col + 2] == piece) and self.board[row - 1][col + 1] == 1 and self.board[row + 1][col + 1] == 1:
                     self.winning_team = 1
         if len(kill_coords) > 0:
             self.reward_vals[self.turn] += .05
@@ -331,14 +367,14 @@ class Game:
             )
     def draw_board(self):
         # Draw the board
-        pygame.draw.rect(screen, LIGHT_GRAY, (0, 0, WINDOW_SIZE, WINDOW_SIZE), 2)
+        pygame.draw.rect(screen, LIGHT_GRAY, (BOARD_STARTING_COORDS[0], BOARD_STARTING_COORDS[1], BOARD_SIZE, BOARD_SIZE), 2)
         for corner in CORNERS:
             row, col = corner
             pygame.draw.rect(screen, CORNER_COLOR, (col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE), 0)
         c_row, c_col = CENTER
         pygame.draw.rect(screen, CORNER_COLOR, (c_col * TILE_SIZE, c_row * TILE_SIZE, TILE_SIZE, TILE_SIZE), 0)
-        for row in range(BOARD_SIZE):
-            for col in range(BOARD_SIZE):
+        for row in range(BOARD_TILES):
+            for col in range(BOARD_TILES):
                 pygame.draw.rect(screen, LIGHT_GRAY, (col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE), 1)
                 # Draw pieces
                 self.append_draw_piece(row, col, self.board[row][col])
@@ -390,6 +426,18 @@ class Game:
             "new_row": -1,
         }
 
+    def bot_action(self, bot):
+        time.sleep(.1)
+        action = bot.act(self.get_state_representation(), self)
+        grid_x = action[3]
+        grid_y = action[2]
+        row = action[0]
+        col = action[1]
+        if self.board[row][col] == 3:
+            self.place_piece(grid_x, grid_y, row, col, 3)
+        else:
+            self.place_piece(grid_x, grid_y, row, col, self.turn)
+
     def play_game(self):
         """
         Main method to run all game functions
@@ -404,6 +452,10 @@ class Game:
         is_dragging = False
         selected_piece = None
         while True:
+            if self.botone is not None and self.turn == 1 and self.winning_team == 0:
+                self.bot_action(self.botone)
+            if self.bottwo is not None and self.turn == 2 and self.winning_team == 0:
+                self.bot_action(self.bottwo)
             for event in pygame.event.get():
                 # quits game
                 if event.type == pygame.QUIT:
@@ -470,6 +522,8 @@ class Game:
                 x, y = kill_cord
                 self.update_field_colors(y, x, KILL_COLOR)
             self.draw_board()
+            if self.mode == "training":
+                self.update_episode(self.episode)
             self.draw_possible_moves()
 
             # draws dragged piece
