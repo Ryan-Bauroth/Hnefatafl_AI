@@ -6,7 +6,7 @@ Runs trained models on a game
 
 import os
 from game import Game
-from deep_learning import DQNAgent
+from ryfi.deep_learning import DQNAgent
 
 game = Game()
 
