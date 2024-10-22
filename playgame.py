@@ -13,10 +13,10 @@ game = Game()
 state_size = 11 * 11
 # comes from...
 output_size = 14641
-game.botone = DQNAgent(state_size, output_size, epsilon = 0)
-game.bottwo = DQNAgent(state_size, output_size, epsilon = 0)
+game.botone = DQNAgent(state_size, output_size, epsilon = 0, temperature=.3)
 if os.path.exists("saved_models/agent1.pth"):
     game.botone.load_model("saved_models/agent1.pth")
+game.bottwo = DQNAgent(state_size, output_size, epsilon = 0, temperature=.3)
 if os.path.exists("saved_models/agent2.pth"):
     game.bottwo.load_model("saved_models/agent2.pth")
 

@@ -231,10 +231,7 @@ class Game:
         if not (grid_y == row and grid_x == col):
             # if self.prev_move[self.turn] == [grid_x, grid_y, roxw, col]:
             #     self.reward_vals[self.turn] -= .075
-            if self.turn == 1:
-                self.reward_vals[self.turn] += .00005
-            else:
-                self.reward_vals[self.turn] -= .00005
+            self.reward_vals[self.turn] -= .0001
             self.reward_vals[self.turn] = 0
             self.board[row][col] = 0
             self.kill_coords = self.check_kills(grid_y, grid_x, piece)
@@ -457,7 +454,6 @@ class Game:
         :param bot: The bot object that performs an action based on the current state representation.
         :return: None
         """
-        time.sleep(.1)
         action = bot.act(self.get_state_representation(), self)
         grid_x = action[3]
         grid_y = action[2]
