@@ -236,7 +236,28 @@ class Game:
         # if the piece is not going back to its og location, change turns
         if not (grid_y == row and grid_x == col):
             self.reward_vals[self.turn] = 0
-            self.reward_vals[self.turn] -= .0001
+            if self.turn == 2 and piece == 3:
+                old_dist = 1000
+                new_dist = 1000
+                for c, r in CORNERS:
+                    dist1 = abs(grid_y - r) + abs(grid_x - c)
+                    dist2 = abs(row - r) + abs(col - c)
+                    if dist1 < new_dist:
+                        new_dist = dist1
+                    if dist2 < old_dist:
+                        old_dist = dist2
+                if old_dist > new_dist:
+                    self.reward_vals[self.turn] += .05
+                    self.reward_vals[3-self.turn] -= .05
+                elif old_dist < new_dist:
+                    self.reward_vals[self.turn] -= .05
+                    self.reward_vals[3-self.turn] += .05
+            if self.turn == 1:
+                if self.board[min(grid_y + 1, 10)][grid_x] == 3 or self.board[grid_y][min(grid_x + 1, 10)] == 3 \
+                        or self.board[max(grid_y - 1, 0)][grid_x] == 3 or self.board[grid_y][max(grid_x - 1, 0)]:
+                    self.reward_vals[self.turn] += .05
+                    self.reward_vals[3-self.turn] -= .05
+
             self.board[row][col] = 0
             self.kill_coords = self.check_kills(grid_y, grid_x, piece)
             self.recent_move_coords = {
@@ -398,6 +419,7 @@ class Game:
                 TILE_SIZE // 2 - 9,
                 BLACK
             )
+
     def draw_board(self):
         # Draw the board
         pygame.draw.rect(screen, LIGHT_GRAY, (BOARD_STARTING_COORDS[0], BOARD_STARTING_COORDS[1], BOARD_SIZE, BOARD_SIZE), 2)

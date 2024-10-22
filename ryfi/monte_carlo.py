@@ -1,4 +1,7 @@
-# no longer used
+"""
+File containing Monte Carlo Class
+:author: ryfi
+"""
 
 import threading
 
@@ -19,6 +22,11 @@ class HnefataflState(TwoPlayersAbstractGameState):
 
     @property
     def game_result(self):
+        """
+        :return:
+            If the game is over, returns the reward for the current turn.
+            Otherwise, returns the maximum Q-value for the current state.
+        """
         from deep_learning import DQNetwork
         if self.is_game_over():
             return self.game.get_reward(self.game.turn)
@@ -28,9 +36,16 @@ class HnefataflState(TwoPlayersAbstractGameState):
             return q_values.max().item()  # Return the maximum Q-value for the current state
 
     def is_game_over(self):
+        """
+        :return: a boolean indicating whether the game is over
+        """
         return self.game.is_over()
 
     def move(self, move):
+        """
+        :param move: A tuple representing the move details with the format (start_x, start_y, end_x, end_y).
+        :return: A new HnefataflState object representing the state of the game after the move is made.
+        """
         # Make a copy of the game to avoid altering the original state
         new_game = Game()
         new_game.board = [row[:] for row in self.game.board]
@@ -39,6 +54,9 @@ class HnefataflState(TwoPlayersAbstractGameState):
         return HnefataflState(new_game, 3 - self.turn)
 
     def get_legal_actions(self):
+        """
+        :return: A list of possible legal moves in the current state of the game.
+        """
         return self.game.get_possible_moves()
 
     def __repr__(self):
@@ -46,6 +64,11 @@ class HnefataflState(TwoPlayersAbstractGameState):
 
 
 def msim():
+    """
+    Runs a Monte Carlo Tree Search (MCTS) algorithm to determine and perform the best move in a Hnefatafl game until the game is over.
+
+    :return: Nothing
+    """
     while not app.is_over():
         board_state = HnefataflState(app, app.turn)
         last_board = board_state.game.board
