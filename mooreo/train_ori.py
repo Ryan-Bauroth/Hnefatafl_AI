@@ -1,23 +1,40 @@
+'''
+primary file for model training
+'''
+
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import random
 from collections import deque
-from game import *
-from datetime import datetime as DateTime
+from game_ori import *
+#from datetime import datetime as DateTime
 
 import os  # Add this to handle file checks and paths
 
 class Simulator:
+    '''
+    simulates tree to pick out ideal moves in the short term, hopefully identifying future benefits
+    '''
     def __init__(self, game, depth):
+        '''
+        Simulator initializer
+        :param game: game object at current state
+        :param depth: depth of simulation
+        '''
         self.depth = depth
-        #self.max_nodes = max_nodes
         self.turn = game.turn
-        #print(game.get_possible_moves())
-        self.reward = {root: None for root in game.get_possible_moves()}
+        self.reward = {root: [] for root in game.get_possible_moves()}
         self._run_sim(game)
     def _run_sim(self, game, depth=0, reward_so_far=0, root=None):
+        '''
+        recursively simulates future moves at given depth
+        :param game: game object at state to pick move
+        :param depth: current depth of simulation
+        :param reward_so_far: reward at current depth
+        :param root: initial move of branch
+        '''
         depth += 1
         if game.turn == 1:
             king_r, king_c = game.king_loc
@@ -57,7 +74,10 @@ class Simulator:
                                 new_game.board[king_r][king_c+1] > 0,
                                 new_game.board[king_r][king_c-1] > 0
                             ))
-                            rewards[key] += 5 * (surrounded_after - surrounded_before) * (1 if self.turn==game.turn else -1)
+                            if surrounded_after == 4:
+                                rewards[key] += 250 * (1 if self.turn==game.turn else -1)
+                            else:
+                                rewards[key] += 5 * (surrounded_after - surrounded_before) * (1 if self.turn==game.turn else -1)
                     if game.board[cur_row][cur_col] == 3:
                         if new_row == 0 or new_row == BOARD_SIZE - 1 or new_col == 0 or new_col == BOARD_SIZE - 1:
                             rewards[key] += 50 * (1 if self.turn==game.turn else -1) * (1 if game.turn==2 else -1)
@@ -72,23 +92,33 @@ class Simulator:
                 moves.append(max(keys, key=lambda x: rewards[x] * (1 if self.turn == game.turn else -1)))'''
         else:
             random.shuffle(all_keys)
-            moves.append(max(all_keys, key=lambda x: rewards[x] * (1 if self.turn==game.turn else -1)))
+            all_keys.sort(key=lambda x: rewards[x], reverse=self.turn==game.turn)
+            moves.append(all_keys[0])
+            moves.append(all_keys[-1])
         for key in moves:
             new_game = new_games[key]
             if new_game.is_over():
-                self.reward[key if root is None else root] = rewards[key]
+                self.reward[key if root is None else root].append(rewards[key])
             elif depth == self.depth:
-                self.reward[key if root is None else root] = rewards[key]
+                self.reward[key if root is None else root].append(rewards[key])
             else:
                 self._run_sim(new_game, depth, rewards[key], key if root is None else root)
     def best_moves(self):
+        '''
+        :return: best moves after running the simulation
+        '''
         #print(self.reward)
-        summary = {key: val for key, val in self.reward.items() if val is not None}
-        #print({key: mins[key] for key in sorted(list(mins), key=mins.get, reverse=True)})
-        best = max(summary.values())
-        return [key for key, val in summary.items() if val == best]
+        mins = {key: min(val) for key, val in self.reward.items() if val is not None}
+        best_min = max(mins.values())
+        maxes = {key: max(self.reward[key]) for key, val in mins.items() if val == best_min}
+        best_max = max(maxes.values())
+        return [key for key, val in maxes.items() if val == best_max]
 
 def multi_channel_board_representation(board):
+    '''
+    creates board representation with separate channels for each piece type
+    :param board: current board
+    '''
     # Create an empty array for the multi-channel representation
     multi_channel_board = np.zeros((4, BOARD_SIZE, BOARD_SIZE), dtype=np.float32)
     # Fill in the channels based on the pieces on the board
@@ -97,21 +127,13 @@ def multi_channel_board_representation(board):
             multi_channel_board[board[r][c]-1, r, c] = 1
     return multi_channel_board
 
-'''def get_possible_captures(game):
-    return [
-        move for move in game.get_possible_moves() if
-        game.board[move[0]][move[1]] != 3 and (
-            (move[2] - 2 >= 0 and game.board[move[2] - 1][move[3]] == 3-game.turn and (game.board[move[2] - 2][move[3]] == game.turn or (move[2] - 2, move[3]) in CORNERS)) or
-            (move[2] + 2 <= BOARD_SIZE - 1 and game.board[move[2] + 1][move[3]] == 3-game.turn and (game.board[move[2] + 2][move[3]] == game.turn or (move[2] + 2, move[3]) in CORNERS)) or
-            (move[3] - 2 >= 0 and game.board[move[2]][move[3] - 1] == 3-game.turn and (game.board[move[2]][move[3] - 2] == game.turn or (move[2], move[3] - 2) in CORNERS)) or
-            (move[3] + 2 <= BOARD_SIZE - 1 and game.board[move[2]][move[3] + 1] == 3-game.turn and (game.board[move[2]][move[3] + 2] == game.turn or (move[2], move[3] + 2) in CORNERS))
-        )
-    ]'''
-
-def rotate_and_flatten_board(board, k):
-    return [float(v) for v in np.rot90(np.array(board).reshape(BOARD_SIZE, BOARD_SIZE), k).flatten()]
-
 def rotate_board(board, k):
+    '''
+    rotates board by k rotations
+    :param board: current board
+    :param k: number of rotations
+    :return: rotated board
+    '''
     new_board = [[0 for _ in range(BOARD_SIZE)] for _ in range(BOARD_SIZE)]
     for r in range(BOARD_SIZE):
         for c in range(BOARD_SIZE):
@@ -121,10 +143,10 @@ def rotate_board(board, k):
 
 def rotate_action(action, k):
     """
-    Rotates an action based on how the board is rotated.
-    :param action: A tuple (cur_row, cur_col, new_row, new_col).
-    :param k: Number of 90-degree rotations to apply.
-    :return: Rotated action.
+    rotates action by k rotations
+    :param action: tuple action
+    :param k: number of rotations
+    :return: rotated action
     """
     cur_row, cur_col, new_row, new_col = action
     
@@ -148,15 +170,30 @@ def rotate_coords(row, col, k):
     return row, col
 
 def flatten_board(board):
+    '''
+    flattens board
+    :param board: current board
+    :return: flattened board
+    '''
     new = []
     for row in board:
         new.extend(row)
     return new
 
 def flatten_action(action):
+    '''
+    flattens action
+    :param action: tuple action
+    :return: flattened action
+    '''
     return action[0] * BOARD_SIZE**3 + action[1] * BOARD_SIZE**2 + action[2] * BOARD_SIZE + action[3]
 
 def unflatten_action(action):
+    '''
+    unflattens action
+    :param action: flattened action
+    :return: unflattened action
+    '''
     cur_row = action // (BOARD_SIZE**3)
     action %= BOARD_SIZE**3
     cur_col = action // (BOARD_SIZE**2)
@@ -168,7 +205,12 @@ def unflatten_action(action):
     )
 
 def select_action(game, policy_net, epsilon):
-    """Selects an action using epsilon-greedy policy."""
+    """
+    selects action with combination of reinforcement learning and Simulator with epsilon policy
+    :param game: current game
+    :param policy_net: policy network
+    :param epsilon: epsilon
+    """
     best_moves = Simulator(game, 1 if random.random() < epsilon else 2).best_moves()
     if random.random() >= epsilon:
         with torch.no_grad():
@@ -185,11 +227,18 @@ def select_action(game, policy_net, epsilon):
         return flatten_action(random.choice(best_moves))
 
 def ori_model():
+    """
+    my model
+    :return: function of current game with best move
+    """
     trainer = Trainer()
     trainer.load_checkpoint()
     return lambda game: unflatten_action(select_action(game, trainer.policy_net, 0))
 
 class DQN_CNN(nn.Module):
+    '''
+    reinforcement Deep Q model with convolutional layers
+    '''
     def __init__(self, input_channels):
         super(DQN_CNN, self).__init__()
         self.conv1 = nn.Conv2d(input_channels, 32, kernel_size=3, padding=1)  # First convolutional layer
@@ -199,6 +248,10 @@ class DQN_CNN(nn.Module):
         self.fc2 = nn.Linear(512, BOARD_SIZE**4)                                # Output layer
 
     def forward(self, x):
+        '''
+        flattens convolutional network and connects layers with ReLU
+        :param x: input tensor
+        '''
         #print(x)
         #batch_size = x.size(0)  # Batch size
         #x = x.view(batch_size, 1, BOARD_SIZE, BOARD_SIZE)
@@ -210,25 +263,52 @@ class DQN_CNN(nn.Module):
         return self.fc2(x)                 # Output layer (no activation, since it's Q-values)
 
 class ReplayMemory:
+    '''
+    buffer deque for replay memory
+    '''
     def __init__(self, capacity):
+        '''
+        initializes memory
+        :param capacity: capacity of memory
+        '''
         self.memory = deque(maxlen=capacity)
 
     def push(self, state, action, reward, next_state, done):
-        """Saves a transition."""
+        """
+        adds action to replay memory
+        :param state: current state
+        :param action: action taken
+        :param reward: reward received
+        :param next_state: next state
+        :param done: game done
+        """
         self.memory.append((state, action, reward, next_state, done))
 
     def sample(self, batch_size):
-        """Randomly samples a batch from memory."""
+        """
+        randomly samples a batch from memory
+        :param batch_size: batch size
+        :return: sampled batch
+        """
         batch = random.sample(self.memory, batch_size)
         states, actions, rewards, next_states, dones = zip(*batch)
         return states, actions, rewards, next_states, dones
 
     def __len__(self):
+        '''
+        length of memory
+        :return: length of memory
+        '''
         return len(self.memory)
 
-# Training loop
 class Trainer:
+    '''
+    trains model
+    '''
     def __init__(self):
+        '''
+        Trainer initializer
+        '''
         # Hyperparameters
         self.batch_size = 32
         self.gamma = 0.99  # Discount factor
@@ -256,7 +336,9 @@ class Trainer:
         self.epsilon = self.epsilon_start
     
     def save_checkpoint(self, episode):
-        """Saves the model, optimizer, memory, and episode number."""
+        """
+        saves model, optimizer, memory, episode number
+        """
         checkpoint = {
             'episode': episode,
             'policy_net_state_dict': {key: net.state_dict() for key, net in self.policy_net.items()},
@@ -267,7 +349,9 @@ class Trainer:
         }
         torch.save(checkpoint, 'checkpoint.pth')
     def load_checkpoint(self):
-        """Loads the model, optimizer, memory, and episode number from a checkpoint."""
+        """
+        Loads the model, optimizer, memory, episode number
+        """
         if os.path.exists('checkpoint.pth'):
             checkpoint = torch.load('checkpoint.pth')
             self.epsilon = checkpoint['epsilon']  # Restore epsilon
@@ -277,10 +361,13 @@ class Trainer:
                 self.optimizer[key].load_state_dict(checkpoint['optimizer_state_dict'][key])
                 # Restore the replay memory
                 self.memory[key].memory = checkpoint['memory'][key]
-            print(f"Checkpoint loaded: Resuming from episode {checkpoint['episode']}")
+            print(f"Checkpoint loaded: Resuming from episode {checkpoint['episode']+1}")
             return checkpoint['episode']  # Return the last episode number
         return -1
     def train(self):
+        '''
+        training loop
+        '''
         episode = self.load_checkpoint()
         while episode < self.num_episodes:
             episode += 1
@@ -294,6 +381,7 @@ class Trainer:
             test_data = []
             move_i = -1
             while not done:
+                #print('here')
                 move_i += 1
                 turn = game.turn
                 
@@ -354,8 +442,10 @@ class Trainer:
                 open('test_game.txt', 'w').write('\n'.join(test_data))
                 self.save_checkpoint(episode)
         
-    # Function to optimize the model
     def optimize_model(self):
+        '''
+        optimizes double DQN (policy network and target network)
+        '''
         for key in (1, 2):
             if len(self.memory[key]) < self.batch_size:
                 return
