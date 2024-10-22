@@ -40,15 +40,15 @@ BOARD_START = [
 CORNERS = [(0, 0), (0, BOARD_TILES - 1), (BOARD_TILES - 1, 0), (BOARD_TILES - 1, BOARD_TILES - 1)]
 CENTER = (BOARD_TILES // 2, BOARD_TILES // 2)
 
-# Load piece images and scale them to fit the tile size
-attacker_img = pygame.image.load('pieces/attacker.png')
-attacker_img = pygame.transform.smoothscale(attacker_img, (TILE_SIZE - 10, TILE_SIZE - 10))
-
-defender_img = pygame.image.load('pieces/defender.png')
-defender_img = pygame.transform.smoothscale(defender_img, (TILE_SIZE - 10, TILE_SIZE - 10))
-
-king_img = pygame.image.load('pieces/king.png')
-king_img = pygame.transform.smoothscale(king_img, (TILE_SIZE - 10, TILE_SIZE - 10))
+# # Load piece images and scale them to fit the tile size
+# attacker_img = pygame.image.load('pieces/attacker.png')
+# attacker_img = pygame.transform.smoothscale(attacker_img, (TILE_SIZE - 10, TILE_SIZE - 10))
+#
+# defender_img = pygame.image.load('pieces/defender.png')
+# defender_img = pygame.transform.smoothscale(defender_img, (TILE_SIZE - 10, TILE_SIZE - 10))
+#
+# king_img = pygame.image.load('pieces/king.png')
+# king_img = pygame.transform.smoothscale(king_img, (TILE_SIZE - 10, TILE_SIZE - 10))
 
 # Create the Pygame window
 screen = pygame.display.set_mode(WINDOW_SIZE)
@@ -473,7 +473,7 @@ class Game:
         is_dragging = False
         selected_piece = None
         while True:
-            if self.bots[self.turn] is None:
+            if self.bots[self.turn] is None and self.winning_team == 0:
                 for event in pygame.event.get():
                     # quits game
                     if event.type == pygame.QUIT:
@@ -527,9 +527,20 @@ class Game:
                             else:
                                 self.board[row][col] = piece
                         is_dragging = False
-            else:
+            elif self.winning_team == 0:
                 cur_row, cur_col, new_row, new_col = self.bots[self.turn](self)
                 self.place_piece(new_col, new_row, cur_row, cur_col, self.board[cur_row][cur_col])
+            else:
+                for event in pygame.event.get():
+                    # quits game
+                    if event.type == pygame.QUIT:
+                        pygame.quit()
+                        sys.exit()
+
+                    # resets game on r key
+                    elif event.type == pygame.KEYDOWN:
+                        if event.key == pygame.K_r:
+                            self.reset()
 
             # updates board
             self.piece_arr = []
