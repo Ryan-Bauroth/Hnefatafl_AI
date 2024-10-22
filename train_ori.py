@@ -15,10 +15,19 @@ class Simulator:
         #self.max_nodes = max_nodes
         self.turn = game.turn
         #print(game.get_possible_moves())
-        self.reward = {root: [] for root in game.get_possible_moves()}
+        self.reward = {root: None for root in game.get_possible_moves()}
         self._run_sim(game)
     def _run_sim(self, game, depth=0, reward_so_far=0, root=None):
         depth += 1
+        if game.turn == 1:
+            king_r, king_c = game.king_loc
+            if king_r != 0 and king_r != BOARD_SIZE - 1 and king_c != 0 and king_c != BOARD_SIZE - 1:
+                surrounded_before = sum((
+                    game.board[king_r-1][king_c] > 0,
+                    game.board[king_r+1][king_c] > 0,
+                    game.board[king_r][king_c+1] > 0,
+                    game.board[king_r][king_c-1] > 0
+                ))
         keys_by_piece = {}
         for key in game.get_possible_moves():
             piece = key[0], key[1]
@@ -32,33 +41,52 @@ class Simulator:
                 new_games[key] = Game()
                 new_games[key].board = [row[:] for row in game.board]
                 new_games[key].turn = game.turn
+                new_games[key].king_loc = game.king_loc
                 new_game = new_games[key]
                 cur_row, cur_col, new_row, new_col = key
                 new_game.place_piece(new_col, new_row, cur_row, cur_col, new_game.board[cur_row][cur_col])
-                rewards[key] += (30 if game.turn == 1 else 20) * len(new_game.kill_coords) * (1 if self.turn==game.turn else -1)
+                if new_game.is_over():
+                    rewards[key] += 250 * (1 if new_game.winning_team == self.turn else -1) * (self.depth - depth + 1)
+                else:
+                    rewards[key] += (30 if game.turn == 1 else 20) * len(new_game.kill_coords) * (1 if self.turn==game.turn else -1)
+                    if game.turn == 1:
+                        if king_r != 0 and king_r != BOARD_SIZE - 1 and king_c != 0 and king_c != BOARD_SIZE - 1:
+                            surrounded_after = sum((
+                                new_game.board[king_r-1][king_c] > 0,
+                                new_game.board[king_r+1][king_c] > 0,
+                                new_game.board[king_r][king_c+1] > 0,
+                                new_game.board[king_r][king_c-1] > 0
+                            ))
+                            rewards[key] += 5 * (surrounded_after - surrounded_before) * (1 if self.turn==game.turn else -1)
+                    if game.board[cur_row][cur_col] == 3:
+                        if new_row == 0 or new_row == BOARD_SIZE - 1 or new_col == 0 or new_col == BOARD_SIZE - 1:
+                            rewards[key] += 50 * (1 if self.turn==game.turn else -1) * (1 if game.turn==2 else -1)
+                            if new_row == 1 or new_row == BOARD_SIZE - 2 or new_col == 1 or new_col == BOARD_SIZE - 2:
+                                rewards[key] += 200 * (1 if self.turn==game.turn else -1) * (1 if game.turn==2 else -1)
         all_keys = list(rewards)
-        random.shuffle(all_keys)
         moves = []
         if depth == 1:
-            for piece, keys in keys_by_piece.items():
+            moves.extend(all_keys)
+            '''for piece, keys in keys_by_piece.items():
                 random.shuffle(keys)
-                moves.append(max(keys, key=lambda x: rewards[x] * (1 if self.turn == game.turn else -1)))
+                moves.append(max(keys, key=lambda x: rewards[x] * (1 if self.turn == game.turn else -1)))'''
         else:
-            moves.append(max(list(rewards), key=lambda x: rewards[x] * (1 if self.turn==game.turn else -1)))
+            random.shuffle(all_keys)
+            moves.append(max(all_keys, key=lambda x: rewards[x] * (1 if self.turn==game.turn else -1)))
         for key in moves:
             new_game = new_games[key]
             if new_game.is_over():
-                rewards[key] += 250 * (1 if new_game.winning_team == self.turn else -1)
-                self.reward[key if root is None else root].append(rewards[key])
+                self.reward[key if root is None else root] = rewards[key]
             elif depth == self.depth:
-                self.reward[key if root is None else root].append(rewards[key])
+                self.reward[key if root is None else root] = rewards[key]
             else:
                 self._run_sim(new_game, depth, rewards[key], key if root is None else root)
     def best_moves(self):
-        mins = {key: min(val) for key, val in self.reward.items() if val}
+        #print(self.reward)
+        summary = {key: val for key, val in self.reward.items() if val is not None}
         #print({key: mins[key] for key in sorted(list(mins), key=mins.get, reverse=True)})
-        max_min = max(mins.values())
-        return [key for key, val in mins.items() if val == max_min]
+        best = max(summary.values())
+        return [key for key, val in summary.items() if val == best]
 
 def multi_channel_board_representation(board):
     # Create an empty array for the multi-channel representation
@@ -142,15 +170,15 @@ def unflatten_action(action):
 def select_action(game, policy_net, epsilon):
     """Selects an action using epsilon-greedy policy."""
     if epsilon:
-        best_moves = Simulator(game, 1).best_moves() if random.random() < epsilon else Simulator(game, 2).best_moves()
+        best_moves = Simulator(game, 1 if random.random() < epsilon else 2).best_moves()
     else:
-        depth = 2
+        '''depth = 2
         pieces_down = sum(v > 0 for v in flatten_board(game.board))
         if pieces_down < 10:
             depth = 4
         elif pieces_down < 20:
-            depth = 3
-        best_moves = Simulator(game, depth).best_moves()
+            depth = 3'''
+        best_moves = Simulator(game, 2).best_moves()
     if random.random() >= epsilon:
         with torch.no_grad():
             # Select action with highest Q-value
@@ -168,7 +196,7 @@ def select_action(game, policy_net, epsilon):
 def ori_model():
     trainer = Trainer()
     trainer.load_checkpoint()
-    return lambda game: unflatten_action(select_action(game, trainer.policy_net, 0.01))
+    return lambda game: unflatten_action(select_action(game, trainer.policy_net, 0))
 
 class DQN_CNN(nn.Module):
     def __init__(self, input_channels):

@@ -75,6 +75,7 @@ class Game:
                 self.board[-row - 1][col] = val
                 self.board[-row - 1][-col - 1] = val
                 self.board[row][-col - 1] = val
+        self.king_loc = (5, 5)
 
     def reset(self):
         self.board = [[0 for _ in range(BOARD_SIZE)] for _ in range(BOARD_SIZE)]
@@ -179,6 +180,7 @@ class Game:
         """
         # play the piece
         self.board[grid_y][grid_x] = piece
+        if piece == 3: self.king_loc = (grid_y, grid_x)
         # if the piece is not going back to its og location, change turns
         if not (grid_y == row and grid_x == col):
             self.reward_vals[self.turn] = 0
@@ -193,7 +195,7 @@ class Game:
             self.possible_moves = []
             self.turn = 3 - self.turn
             if not self.get_possible_moves():
-                self.winning_team = piece
+                self.winning_team = 2 if piece >= 2 else 1
     def check_kills(self, row, col, piece):
         """
         Checks for kills
