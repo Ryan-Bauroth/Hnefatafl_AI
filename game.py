@@ -235,8 +235,8 @@ class Game:
         self.board[grid_y][grid_x] = piece
         # if the piece is not going back to its og location, change turns
         if not (grid_y == row and grid_x == col):
-            self.reward_vals[self.turn] -= .0001
             self.reward_vals[self.turn] = 0
+            self.reward_vals[self.turn] -= .0001
             self.board[row][col] = 0
             self.kill_coords = self.check_kills(grid_y, grid_x, piece)
             self.recent_move_coords = {
