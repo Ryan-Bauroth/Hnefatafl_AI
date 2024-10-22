@@ -21,10 +21,10 @@ The first method I implemented for my Hnefatafl AI was a Q-Learning Algorithm. T
 ### Rewards
 
 To implement my Q-Learning Algorithm, I designed a reward system. After some trial and error, I settled on the following rewards:
-- King moves closer to the corner (Defender: +0.05)
-- King moves further from the corner (Defender: -0.05)
+- King moves closer to the corner (Defender: +0.05, Attacker: -0.05)
+- King moves further from the corner (Defender: -0.05, Attacker: +0.05)
 - Piece captured (Capturing side: +0.05, Captured side: -0.05)
-- Piece moves next to the King (Attacker: +0.05)
+- Piece moves next to the King (Attacker: +0.05, Defender: -0.05)
 - Win: +1
 - Loss: -1
 
