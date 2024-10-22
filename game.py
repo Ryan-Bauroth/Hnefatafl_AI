@@ -18,7 +18,7 @@ BOARD_STARTING_COORDS = [0, 0]
 FPS = 60
 
 # Color Constants
-BACKGROUND_COLOR = (247,247,247)
+BACKGROUND_COLOR = (247, 247, 247)
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 LIGHT_GRAY = (180, 180, 180)
@@ -30,12 +30,12 @@ PIECE_COLORS = [(0, 0, 0), BLACK, WHITE, KING_COLOR]
 
 # Board Constants
 BOARD_START = [
-    [0,0,0,1,1,1],
-    [0,0,0,0,0,1],
-    [0,0,0,0,0,0],
-    [1,0,0,0,0,2],
-    [1,0,0,0,2,2],
-    [1,1,0,2,2,3]
+    [0, 0, 0, 1, 1, 1],
+    [0, 0, 0, 0, 0, 1],
+    [0, 0, 0, 0, 0, 0],
+    [1, 0, 0, 0, 0, 2],
+    [1, 0, 0, 0, 2, 2],
+    [1, 1, 0, 2, 2, 3]
 ]
 CORNERS = [(0, 0), (0, BOARD_TILES - 1), (BOARD_TILES - 1, 0), (BOARD_TILES - 1, BOARD_TILES - 1)]
 CENTER = (BOARD_TILES // 2, BOARD_TILES // 2)
@@ -54,8 +54,9 @@ king_img = pygame.transform.smoothscale(king_img, (TILE_SIZE - 10, TILE_SIZE - 1
 screen = pygame.display.set_mode(WINDOW_SIZE)
 pygame.display.set_caption("Hnefatafl")
 
+
 class Game:
-    def __init__(self):
+    def __init__(self, bot1=None, bot2=None):
         self.board = [[0 for _ in range(BOARD_TILES)] for _ in range(BOARD_TILES)]
         self.recent_move_coords = {}
         self.clear_field_colors()
@@ -65,16 +66,11 @@ class Game:
         self.possible_moves = []
         self.winning_team = 0
         self.mode = "playing"
-        self.botone = None
-        self.bottwo = None
+        self.bots = {1: bot1, 2: bot2}
         self.episode = 0
         self.reward_vals = {
             1: 0,
             2: 0,
-        }
-        self.prev_move = {
-            1: [-1, -1, -1, -1],
-            2: [-1, -1, -1, -1]
         }
 
     def setup_board(self):
@@ -92,6 +88,20 @@ class Game:
                 self.board[row][-col-1] = val
 
 
+    def setup_board(self):
+        """
+        Sets up the game board by mirroring one-fourth of the board to the other quadrants.
+        The attackers are represented by 1, defenders by 2, and the king by 3.
+
+        :return: None
+        """
+        for row, vals in enumerate(BOARD_START):
+            for col, val in enumerate(vals):
+                self.board[row][col] = val
+                self.board[-row - 1][col] = val
+                self.board[-row - 1][-col - 1] = val
+                self.board[row][-col - 1] = val
+        self.king_loc = (5, 5)
 
     def reset(self):
         """
@@ -110,10 +120,6 @@ class Game:
         self.reward_vals = {
             1: 0,
             2: 0,
-        }
-        self.prev_move = {
-            1: [0, 0, 0, 0],
-            2: [0, 0, 0, 0]
         }
         self.clear_field_colors()
         self.setup_board()
@@ -258,43 +264,49 @@ class Game:
         kill_coords = []
         enemy_piece = 1 if piece == 2 else 2
         # north direction check
-        if row-2 >= 0:
+        if row - 2 >= 0:
             # normal piece capture
-            if self.board[row-1][col] == enemy_piece and (self.board[row-2][col] == piece or (row-2, col) in CORNERS):
-                self.board[row-1][col] = 0
-                kill_coords.append((row-1, col))
+            if self.board[row - 1][col] == enemy_piece and (
+                    self.board[row - 2][col] == piece or (row - 2, col) in CORNERS):
+                self.board[row - 1][col] = 0
+                kill_coords.append((row - 1, col))
         # south direction check
-        if row+2 <= BOARD_TILES-1:
-            if self.board[row+1][col] == enemy_piece and (self.board[row+2][col] == piece or (row+2, col) in CORNERS):
-                self.board[row+1][col] = 0
-                kill_coords.append((row+1, col))
+        if row + 2 <= BOARD_TILES - 1:
+            if self.board[row + 1][col] == enemy_piece and (
+                    self.board[row + 2][col] == piece or (row + 2, col) in CORNERS):
+                self.board[row + 1][col] = 0
+                kill_coords.append((row + 1, col))
         # west direction check
-        if col-2 >= 0:
-            if self.board[row][col-1] == enemy_piece and (self.board[row][col-2] == piece or (row, col-2) in CORNERS):
-                self.board[row][col-1] = 0
-                kill_coords.append((row, col-1))
+        if col - 2 >= 0:
+            if self.board[row][col - 1] == enemy_piece and (
+                    self.board[row][col - 2] == piece or (row, col - 2) in CORNERS):
+                self.board[row][col - 1] = 0
+                kill_coords.append((row, col - 1))
         # east direction check
-        if col+2 <= BOARD_TILES-1:
-            if self.board[row][col + 1] == enemy_piece and (self.board[row][col + 2] == piece or (row, col + 2) in CORNERS):
-                self.board[row][col+1] = 0
-                kill_coords.append((row, col+1))
+        if col + 2 <= BOARD_TILES - 1:
+            if self.board[row][col + 1] == enemy_piece and (
+                    self.board[row][col + 2] == piece or (row, col + 2) in CORNERS):
+                self.board[row][col + 1] = 0
+                kill_coords.append((row, col + 1))
         # king checks
         if piece == 1:
             # north king capture
-            if col-1 > 0 and col+1 < BOARD_TILES-1 and row != BOARD_TILES-1 and row != 0:
-                if self.board[row-1][col] == 3 and (row-2 < 0 or self.board[row-2][col] == 1) and self.board[row-1][col-1] == 1 and self.board[row-1][col+1] == 1:
+            if col - 1 > 0 and col + 1 < BOARD_TILES - 1 and row != BOARD_TILES - 1 and row != 0:
+                if self.board[row - 1][col] == 3 and (row - 2 < 0 or self.board[row - 2][col] == 1) and \
+                        self.board[row - 1][col - 1] == 1 and self.board[row - 1][col + 1] == 1:
                     self.winning_team = 1
             # south king capture
             if col-1 > 0 and col+1 < BOARD_TILES-1 and row != BOARD_TILES-1 and row != 0:
                 if self.board[row+1][col] == 3 and (row + 2 > BOARD_TILES - 1 or self.board[row + 2][col] == piece) and self.board[row + 1][col - 1] == 1 and self.board[row + 1][col + 1] == 1:
                     self.winning_team = 1
             # west king check
-            if row-1 > 0 and row+1 < BOARD_TILES-1 and col != BOARD_TILES-1 and col != 0:
-                if self.board[row][col-1] == 3 and (col-2 < 0 or self.board[row][col-2] == piece) and self.board[row-1][col-1] == 1 and self.board[row+1][col-1] == 1:
+            if row - 1 > 0 and row + 1 < BOARD_TILES - 1 and col != BOARD_TILES - 1 and col != 0:
+                if self.board[row][col - 1] == 3 and (col - 2 < 0 or self.board[row][col - 2] == piece) and \
+                        self.board[row - 1][col - 1] == 1 and self.board[row + 1][col - 1] == 1:
                     self.winning_team = 1
             # east king check
-            if row-1 > 0 and row+1 < BOARD_TILES-1 and col != BOARD_TILES-1 and col != 0:
-                if self.board[row][col+1] == 3 and (col + 2 > BOARD_TILES - 1 or self.board[row][col + 2] == piece) and self.board[row - 1][col + 1] == 1 and self.board[row + 1][col + 1] == 1:
+            if row - 1 > 0 and row + 1 < BOARD_TILES - 1 and col != BOARD_TILES-1 and col != 0:
+                if self.board[row][col+1] == 3 and (col + 2 > BOARD_TILES - 1 or self.board[row][col + 2] == piece) and \self.board[row - 1][col + 1] == 1 and self.board[row + 1][col + 1] == 1:
                     self.winning_team = 1
         if len(kill_coords) > 0:
             self.reward_vals[self.turn] += .05
@@ -315,7 +327,7 @@ class Game:
     def check_play(self, grid_y, row, grid_x, col, piece):
         """
         Checks to see if an intended play is legal
-    
+
         :param grid_y: int the intended play's row
         :param row: int the moving pieces original row
         :param grid_x: int the intended play's col
@@ -577,6 +589,9 @@ class Game:
             pygame.display.flip()
             clock.tick(FPS)
 
-if __name__ == "__main__":
-    app = Game()
-    app.play_game()
+            # checks if player 2 wins
+            if self.check_king_win() and self.winning_team != 2:
+                self.winning_team = 2
+
+            pygame.display.flip()
+            clock.tick(FPS)
