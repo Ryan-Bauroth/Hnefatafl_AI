@@ -169,16 +169,7 @@ def unflatten_action(action):
 
 def select_action(game, policy_net, epsilon):
     """Selects an action using epsilon-greedy policy."""
-    if epsilon:
-        best_moves = Simulator(game, 1 if random.random() < epsilon else 2).best_moves()
-    else:
-        '''depth = 2
-        pieces_down = sum(v > 0 for v in flatten_board(game.board))
-        if pieces_down < 10:
-            depth = 4
-        elif pieces_down < 20:
-            depth = 3'''
-        best_moves = Simulator(game, 2).best_moves()
+    best_moves = Simulator(game, 1 if random.random() < epsilon else 2).best_moves()
     if random.random() >= epsilon:
         with torch.no_grad():
             # Select action with highest Q-value
@@ -360,7 +351,6 @@ class Trainer:
             if episode % self.target_update_freq == self.target_update_freq-1:
                 for key in (1, 2):
                     self.target_net[key].load_state_dict(self.policy_net[key].state_dict())
-            if episode % 100 == 99:
                 open('test_game.txt', 'w').write('\n'.join(test_data))
                 self.save_checkpoint(episode)
         
