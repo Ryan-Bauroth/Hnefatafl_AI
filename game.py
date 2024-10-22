@@ -1,11 +1,20 @@
+"""
+Game class of Hnefatafl
+:authors: ryfi, mooreo
+"""
+
+import time
+
 import pygame
 import sys
 from pygame import gfxdraw
 
 # Constants
-BOARD_SIZE = 11
+BOARD_TILES = 11
 TILE_SIZE = 60
-WINDOW_SIZE = BOARD_SIZE * TILE_SIZE
+BOARD_SIZE = BOARD_TILES * TILE_SIZE
+WINDOW_SIZE = (BOARD_SIZE, BOARD_SIZE + 50)
+BOARD_STARTING_COORDS = [0, 0]
 FPS = 60
 
 # Color Constants
@@ -28,8 +37,8 @@ BOARD_START = [
     [1, 0, 0, 0, 2, 2],
     [1, 1, 0, 2, 2, 3]
 ]
-CORNERS = [(0, 0), (0, BOARD_SIZE - 1), (BOARD_SIZE - 1, 0), (BOARD_SIZE - 1, BOARD_SIZE - 1)]
-CENTER = (BOARD_SIZE // 2, BOARD_SIZE // 2)
+CORNERS = [(0, 0), (0, BOARD_TILES - 1), (BOARD_TILES - 1, 0), (BOARD_TILES - 1, BOARD_TILES - 1)]
+CENTER = (BOARD_TILES // 2, BOARD_TILES // 2)
 
 # Load piece images and scale them to fit the tile size
 attacker_img = pygame.image.load('pieces/attacker.png')
@@ -42,13 +51,13 @@ king_img = pygame.image.load('pieces/king.png')
 king_img = pygame.transform.smoothscale(king_img, (TILE_SIZE - 10, TILE_SIZE - 10))
 
 # Create the Pygame window
-screen = pygame.display.set_mode((WINDOW_SIZE, WINDOW_SIZE))
+screen = pygame.display.set_mode(WINDOW_SIZE)
 pygame.display.set_caption("Hnefatafl")
 
 
 class Game:
     def __init__(self, bot1=None, bot2=None):
-        self.board = [[0 for _ in range(BOARD_SIZE)] for _ in range(BOARD_SIZE)]
+        self.board = [[0 for _ in range(BOARD_TILES)] for _ in range(BOARD_TILES)]
         self.recent_move_coords = {}
         self.clear_field_colors()
         self.piece_arr = []
@@ -56,11 +65,28 @@ class Game:
         self.kill_coords = []
         self.possible_moves = []
         self.winning_team = 0
+        self.mode = "playing"
         self.bots = {1: bot1, 2: bot2}
+        self.episode = 0
         self.reward_vals = {
             1: 0,
             2: 0,
         }
+
+    def setup_board(self):
+        """
+        Sets up the game board by mirroring one-fourth of the board to the other quadrants.
+        The attackers are represented by 1, defenders by 2, and the king by 3.
+
+        :return: None
+        """
+        for row, vals in enumerate(BOARD_START):
+            for col, val in enumerate(vals):
+                self.board[row][col] = val
+                self.board[-row-1][col] = val
+                self.board[-row-1][-col-1] = val
+                self.board[row][-col-1] = val
+
 
     def setup_board(self):
         """
@@ -78,7 +104,13 @@ class Game:
         self.king_loc = (5, 5)
 
     def reset(self):
-        self.board = [[0 for _ in range(BOARD_SIZE)] for _ in range(BOARD_SIZE)]
+        """
+        Resets the game state to its initial condition. This method reinitializes the game board, clears all move records, resets turn counter,
+        and reestablishes initial game settings. It should be called to start a new game or to reset the current game.
+
+        :return: The current state representation of the board after resetting.
+        """
+        self.board = [[0 for _ in range(BOARD_TILES)] for _ in range(BOARD_TILES)]
         self.recent_move_coords = {}
         self.piece_arr = []
         self.turn = 1
@@ -93,6 +125,18 @@ class Game:
         self.setup_board()
         return self.get_state_representation()
 
+    def update_episode(self, episode):
+        """
+        :param episode: The current episode number to be displayed.
+        :return: None
+        """
+        font = pygame.font.Font(None, 48)  # None uses the default font
+        text_surface = font.render("Episode " + str(episode), True, BLACK)
+        scaled_surface = pygame.transform.scale(text_surface, (int(text_surface.get_width() * .5), int(text_surface.get_height() * .5)))
+        text_rect = scaled_surface.get_rect(center=(BOARD_SIZE // 2, BOARD_SIZE + (WINDOW_SIZE[1] - BOARD_SIZE) // 2))
+        screen.blit(scaled_surface, text_rect)
+
+
     def get_state_representation(self):
         # Flatten the board for input into a neural network
         flat_board = []
@@ -101,6 +145,10 @@ class Game:
         return flat_board
 
     def get_reward(self, player):
+        """
+        :param player: The identifier of the player for whom the reward is being calculated.
+        :return: The reward for the given player. Returns 1 if the player is on the winning team, -1 if not on the winning team and the winning team is not neutral, otherwise returns a predefined reward value for the player.
+        """
         if player == self.winning_team:
             return 1
         elif self.winning_team != 0:
@@ -109,6 +157,11 @@ class Game:
             return self.reward_vals[player]
 
     def is_over(self):
+        """
+        Checks if the game is over by evaluating the current game status.
+
+        :return: True if the game is over, otherwise False
+        """
         if self.check_king_win():
             self.winning_team = 2
             return True
@@ -130,7 +183,7 @@ class Game:
                     moves.append((r, col))
             else:
                 break
-        for r in range(row + 1, BOARD_SIZE):
+        for r in range(row + 1, BOARD_TILES):
             if self.board[r][col] == 0:
                 if piece == 3 or ((r, col) not in CORNERS and (r, col) != CENTER):
                     moves.append((r, col))
@@ -142,7 +195,7 @@ class Game:
                     moves.append((row, c))
             else:
                 break
-        for c in range(col + 1, BOARD_SIZE):
+        for c in range(col + 1, BOARD_TILES):
             if self.board[row][c] == 0:
                 if piece == 3 or ((row, c) not in CORNERS and (row, c) != CENTER):
                     moves.append((row, c))
@@ -152,9 +205,12 @@ class Game:
         return moves
 
     def get_possible_moves(self):
+        """
+        :return: A list of all possible moves for the current player's turn. Each move is represented as a tuple containing the row and column of the piece, and the target row and column for the piece's move.
+        """
         all_possible_moves = []
-        for row in range(BOARD_SIZE):
-            for col in range(BOARD_SIZE):
+        for row in range(BOARD_TILES):
+            for col in range(BOARD_TILES):
                 if self.board[row][col] == self.turn:
                     piece_moves = self.get_piece_possible_moves(col, row, self.turn)
                     for move in piece_moves:
@@ -168,22 +224,19 @@ class Game:
 
     def place_piece(self, grid_x, grid_y, row, col, piece):
         """
-        Places a piece on the board and handles necessary updates
-        -> Input goes Col, Row, Row, Col because I am a crappy designer
-
-        :param grid_x: The x-coordinate on the grid where the piece is to be placed.
-        :param grid_y: The y-coordinate on the grid where the piece is to be placed.
-        :param row: The current row of the piece before being moved.
-        :param col: The current column of the piece before being moved.
+        :param grid_x: The x-coordinate on the game board where the piece will be placed.
+        :param grid_y: The y-coordinate on the game board where the piece will be placed.
+        :param row: The original row coordinate from where the piece is moved.
+        :param col: The original column coordinate from where the piece is moved.
         :param piece: The game piece to be placed on the board.
         :return: None
         """
         # play the piece
         self.board[grid_y][grid_x] = piece
-        if piece == 3: self.king_loc = (grid_y, grid_x)
         # if the piece is not going back to its og location, change turns
         if not (grid_y == row and grid_x == col):
             self.reward_vals[self.turn] = 0
+            self.reward_vals[self.turn] -= .0001
             self.board[row][col] = 0
             self.kill_coords = self.check_kills(grid_y, grid_x, piece)
             self.recent_move_coords = {
@@ -195,7 +248,8 @@ class Game:
             self.possible_moves = []
             self.turn = 3 - self.turn
             if not self.get_possible_moves():
-                self.winning_team = 2 if piece >= 2 else 1
+                self.winning_team = piece
+
     def check_kills(self, row, col, piece):
         """
         Checks for kills
@@ -214,7 +268,7 @@ class Game:
                 self.board[row - 1][col] = 0
                 kill_coords.append((row - 1, col))
         # south direction check
-        if row + 2 <= BOARD_SIZE - 1:
+        if row + 2 <= BOARD_TILES - 1:
             if self.board[row + 1][col] == enemy_piece and (
                     self.board[row + 2][col] == piece or (row + 2, col) in CORNERS):
                 self.board[row + 1][col] = 0
@@ -226,7 +280,7 @@ class Game:
                 self.board[row][col - 1] = 0
                 kill_coords.append((row, col - 1))
         # east direction check
-        if col + 2 <= BOARD_SIZE - 1:
+        if col + 2 <= BOARD_TILES - 1:
             if self.board[row][col + 1] == enemy_piece and (
                     self.board[row][col + 2] == piece or (row, col + 2) in CORNERS):
                 self.board[row][col + 1] = 0
@@ -234,24 +288,23 @@ class Game:
         # king checks
         if piece == 1:
             # north king capture
-            if col - 1 > 0 and col + 1 < BOARD_SIZE - 1 and row != BOARD_SIZE - 1 and row != 0:
+            if col - 1 > 0 and col + 1 < BOARD_TILES - 1 and row != BOARD_TILES - 1 and row != 0:
                 if self.board[row - 1][col] == 3 and (row - 2 < 0 or self.board[row - 2][col] == 1) and \
                         self.board[row - 1][col - 1] == 1 and self.board[row - 1][col + 1] == 1:
                     self.winning_team = 1
             # south king capture
-            if col - 1 > 0 and col + 1 < BOARD_SIZE - 1 and row != BOARD_SIZE - 1 and row != 0:
-                if self.board[row + 1][col] == 3 and (row + 2 > BOARD_SIZE - 1 or self.board[row + 2][col] == piece) and \
-                        self.board[row + 1][col - 1] == 1 and self.board[row + 1][col + 1] == 1:
+            if col-1 > 0 and col+1 < BOARD_TILES-1 and row != BOARD_TILES-1 and row != 0:
+                if self.board[row+1][col] == 3 and (row + 2 > BOARD_TILES - 1 or self.board[row + 2][col] == piece) and self.board[row + 1][col - 1] == 1 and self.board[row + 1][col + 1] == 1:
                     self.winning_team = 1
             # west king check
-            if row - 1 > 0 and row + 1 < BOARD_SIZE - 1 and col != BOARD_SIZE - 1 and col != 0:
+            if row - 1 > 0 and row + 1 < BOARD_TILES - 1 and col != BOARD_TILES - 1 and col != 0:
                 if self.board[row][col - 1] == 3 and (col - 2 < 0 or self.board[row][col - 2] == piece) and \
                         self.board[row - 1][col - 1] == 1 and self.board[row + 1][col - 1] == 1:
                     self.winning_team = 1
             # east king check
-            if row - 1 > 0 and row + 1 < BOARD_SIZE - 1 and col != BOARD_SIZE - 1 and col != 0:
-                if self.board[row][col + 1] == 3 and (col + 2 > BOARD_SIZE - 1 or self.board[row][col + 2] == piece) and \
-                        self.board[row - 1][col + 1] == 1 and self.board[row + 1][col + 1] == 1:
+            if row - 1 > 0 and row + 1 < BOARD_TILES - 1 and col != BOARD_TILES-1 and col != 0:
+                if self.board[row][col+1] == 3 and (col + 2 > BOARD_TILES - 1 or self.board[row][col + 2] == piece) and \
+                    self.board[row - 1][col + 1] == 1 and self.board[row + 1][col + 1] == 1:
                     self.winning_team = 1
         if len(kill_coords) > 0:
             self.reward_vals[self.turn] += .05
@@ -259,6 +312,11 @@ class Game:
         return kill_coords
 
     def check_king_win(self):
+        """
+        Checks if the king piece has reached any of the corner positions on the board, which signifies a win.
+
+        :return: True if the king is in one of the corner positions, False otherwise
+        """
         for row, col in CORNERS:
             if self.board[row][col] == 3:
                 return True
@@ -332,7 +390,7 @@ class Game:
                 row * TILE_SIZE + TILE_SIZE // 2,
                 TILE_SIZE // 2 - 9,
                 PIECE_COLORS[piece],
-            )
+                )
             pygame.gfxdraw.aacircle(
                 screen,
                 col * TILE_SIZE + TILE_SIZE // 2,
@@ -340,17 +398,16 @@ class Game:
                 TILE_SIZE // 2 - 9,
                 BLACK
             )
-
     def draw_board(self):
         # Draw the board
-        pygame.draw.rect(screen, LIGHT_GRAY, (0, 0, WINDOW_SIZE, WINDOW_SIZE), 2)
+        pygame.draw.rect(screen, LIGHT_GRAY, (BOARD_STARTING_COORDS[0], BOARD_STARTING_COORDS[1], BOARD_SIZE, BOARD_SIZE), 2)
         for corner in CORNERS:
             row, col = corner
             pygame.draw.rect(screen, CORNER_COLOR, (col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE), 0)
         c_row, c_col = CENTER
         pygame.draw.rect(screen, CORNER_COLOR, (c_col * TILE_SIZE, c_row * TILE_SIZE, TILE_SIZE, TILE_SIZE), 0)
-        for row in range(BOARD_SIZE):
-            for col in range(BOARD_SIZE):
+        for row in range(BOARD_TILES):
+            for col in range(BOARD_TILES):
                 pygame.draw.rect(screen, LIGHT_GRAY, (col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE), 1)
                 # Draw pieces
                 self.append_draw_piece(row, col, self.board[row][col])
@@ -415,19 +472,19 @@ class Game:
         self.clear_field_colors()
         is_dragging = False
         selected_piece = None
-        while not self.is_over():
+        while True:
             if self.bots[self.turn] is None:
                 for event in pygame.event.get():
                     # quits game
                     if event.type == pygame.QUIT:
                         pygame.quit()
                         sys.exit()
-    
+
                     # resets game on r key
                     elif event.type == pygame.KEYDOWN:
                         if event.key == pygame.K_r:
                             self.reset()
-    
+
                     elif event.type == pygame.MOUSEBUTTONDOWN:
                         piece_clicked = False
                         mouse_x, mouse_y = event.pos
@@ -454,7 +511,7 @@ class Game:
                                 if (grid_y, grid_x) in self.possible_moves:
                                     self.place_piece(grid_x, grid_y, row, col, piece)
                             self.possible_moves = []
-    
+
                     elif event.type == pygame.MOUSEBUTTONUP:
                         # if the user was dragging a piece, places it
                         if is_dragging:
@@ -473,7 +530,7 @@ class Game:
             else:
                 cur_row, cur_col, new_row, new_col = self.bots[self.turn](self)
                 self.place_piece(new_col, new_row, cur_row, cur_col, self.board[cur_row][cur_col])
-            
+
             # updates board
             self.piece_arr = []
             screen.fill(BACKGROUND_COLOR)
@@ -486,6 +543,8 @@ class Game:
                 x, y = kill_cord
                 self.update_field_colors(y, x, KILL_COLOR)
             self.draw_board()
+            if self.mode == "training":
+                self.update_episode(self.episode)
             self.draw_possible_moves()
 
             # draws dragged piece
@@ -512,3 +571,14 @@ class Game:
 
             pygame.display.flip()
             clock.tick(FPS)
+
+            # checks if player 2 wins
+            if self.check_king_win() and self.winning_team != 2:
+                self.winning_team = 2
+
+            pygame.display.flip()
+            clock.tick(FPS)
+
+if __name__ == "__main__":
+    game = Game()
+    game.play_game()
