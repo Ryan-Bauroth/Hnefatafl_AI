@@ -235,8 +235,6 @@ class Game:
         self.board[grid_y][grid_x] = piece
         # if the piece is not going back to its og location, change turns
         if not (grid_y == row and grid_x == col):
-            # if self.prev_move[self.turn] == [grid_x, grid_y, roxw, col]:
-            #     self.reward_vals[self.turn] -= .075
             self.reward_vals[self.turn] -= .0001
             self.reward_vals[self.turn] = 0
             self.board[row][col] = 0
@@ -249,7 +247,6 @@ class Game:
             }
             self.possible_moves = []
             self.turn = 3 - self.turn
-            self.prev_move[self.turn] = [grid_x, grid_y, row, col]
             if not self.get_possible_moves():
                 self.winning_team = piece
 
@@ -306,7 +303,8 @@ class Game:
                     self.winning_team = 1
             # east king check
             if row - 1 > 0 and row + 1 < BOARD_TILES - 1 and col != BOARD_TILES-1 and col != 0:
-                if self.board[row][col+1] == 3 and (col + 2 > BOARD_TILES - 1 or self.board[row][col + 2] == piece) and \self.board[row - 1][col + 1] == 1 and self.board[row + 1][col + 1] == 1:
+                if self.board[row][col+1] == 3 and (col + 2 > BOARD_TILES - 1 or self.board[row][col + 2] == piece) and \
+                    self.board[row - 1][col + 1] == 1 and self.board[row + 1][col + 1] == 1:
                     self.winning_team = 1
         if len(kill_coords) > 0:
             self.reward_vals[self.turn] += .05
@@ -461,21 +459,6 @@ class Game:
             "new_row": -1,
         }
 
-    def bot_action(self, bot):
-        """
-        :param bot: The bot object that performs an action based on the current state representation.
-        :return: None
-        """
-        action = bot.act(self.get_state_representation(), self)
-        grid_x = action[3]
-        grid_y = action[2]
-        row = action[0]
-        col = action[1]
-        if self.board[row][col] == 3:
-            self.place_piece(grid_x, grid_y, row, col, 3)
-        else:
-            self.place_piece(grid_x, grid_y, row, col, self.turn)
-
     def play_game(self):
         """
         Main method to run all game functions
@@ -490,63 +473,63 @@ class Game:
         is_dragging = False
         selected_piece = None
         while True:
-            if self.botone is not None and self.turn == 1 and self.winning_team == 0:
-                self.bot_action(self.botone)
-            if self.bottwo is not None and self.turn == 2 and self.winning_team == 0:
-                self.bot_action(self.bottwo)
-            for event in pygame.event.get():
-                # quits game
-                if event.type == pygame.QUIT:
-                    pygame.quit()
-                    sys.exit()
+            if self.bots[self.turn] is None:
+                for event in pygame.event.get():
+                    # quits game
+                    if event.type == pygame.QUIT:
+                        pygame.quit()
+                        sys.exit()
 
-                # resets game on r key
-                elif event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_r:
-                        self.reset()
+                    # resets game on r key
+                    elif event.type == pygame.KEYDOWN:
+                        if event.key == pygame.K_r:
+                            self.reset()
 
-                elif event.type == pygame.MOUSEBUTTONDOWN:
-                    piece_clicked = False
-                    mouse_x, mouse_y = event.pos
-                    # Check if we are clicking on a piece and sets it as current piece if so
-                    for piece in self.piece_arr:
-                        if piece["rect"].collidepoint(mouse_x, mouse_y) and (
-                                self.turn == piece["piece"] or (piece["piece"] == 3 and self.turn == 2)):
+                    elif event.type == pygame.MOUSEBUTTONDOWN:
+                        piece_clicked = False
+                        mouse_x, mouse_y = event.pos
+                        # Check if we are clicking on a piece and sets it as current piece if so
+                        for piece in self.piece_arr:
+                            if piece["rect"].collidepoint(mouse_x, mouse_y) and (
+                                    self.turn == piece["piece"] or (piece["piece"] == 3 and self.turn == 2)):
+                                self.possible_moves = []
+                                self.possible_moves = self.get_piece_possible_moves(piece["col"], piece["row"],
+                                                                                    piece["piece"])
+                                is_dragging = True
+                                piece_clicked = True
+                                selected_piece = piece
+                                self.board[selected_piece["row"]][selected_piece["col"]] = 0
+                                break
+                        # allows user to click on location for a move to move a piece
+                        if not piece_clicked:
+                            if selected_piece is not None:
+                                grid_x = mouse_x // TILE_SIZE
+                                grid_y = mouse_y // TILE_SIZE
+                                row = selected_piece["row"]
+                                col = selected_piece["col"]
+                                piece = selected_piece["piece"]
+                                if (grid_y, grid_x) in self.possible_moves:
+                                    self.place_piece(grid_x, grid_y, row, col, piece)
                             self.possible_moves = []
-                            self.possible_moves = self.get_piece_possible_moves(piece["col"], piece["row"],
-                                                                                piece["piece"])
-                            is_dragging = True
-                            piece_clicked = True
-                            selected_piece = piece
-                            self.board[selected_piece["row"]][selected_piece["col"]] = 0
-                            break
-                    # allows user to click on location for a move to move a piece
-                    if not piece_clicked:
-                        if selected_piece is not None:
-                            grid_x = mouse_x // TILE_SIZE
-                            grid_y = mouse_y // TILE_SIZE
+
+                    elif event.type == pygame.MOUSEBUTTONUP:
+                        # if the user was dragging a piece, places it
+                        if is_dragging:
+                            mouse_x, mouse_y = pygame.mouse.get_pos()
                             row = selected_piece["row"]
                             col = selected_piece["col"]
                             piece = selected_piece["piece"]
-                            if (grid_y, grid_x) in self.possible_moves:
+                            grid_x = mouse_x // TILE_SIZE
+                            grid_y = mouse_y // TILE_SIZE
+                            # If the user is playing in a empty spot
+                            if self.board[grid_y][grid_x] == 0 and self.check_play(grid_y, row, grid_x, col, piece):
                                 self.place_piece(grid_x, grid_y, row, col, piece)
-                        self.possible_moves = []
-
-                elif event.type == pygame.MOUSEBUTTONUP:
-                    # if the user was dragging a piece, places it
-                    if is_dragging:
-                        mouse_x, mouse_y = pygame.mouse.get_pos()
-                        row = selected_piece["row"]
-                        col = selected_piece["col"]
-                        piece = selected_piece["piece"]
-                        grid_x = mouse_x // TILE_SIZE
-                        grid_y = mouse_y // TILE_SIZE
-                        # If the user is playing in a empty spot
-                        if self.board[grid_y][grid_x] == 0 and self.check_play(grid_y, row, grid_x, col, piece):
-                            self.place_piece(grid_x, grid_y, row, col, piece)
-                        else:
-                            self.board[row][col] = piece
-                    is_dragging = False
+                            else:
+                                self.board[row][col] = piece
+                        is_dragging = False
+            else:
+                cur_row, cur_col, new_row, new_col = self.bots[self.turn](self)
+                self.place_piece(new_col, new_row, cur_row, cur_col, self.board[cur_row][cur_col])
 
             # updates board
             self.piece_arr = []
@@ -595,3 +578,7 @@ class Game:
 
             pygame.display.flip()
             clock.tick(FPS)
+
+if __name__ == "__main__":
+    game = Game()
+    game.play_game()
