@@ -6,6 +6,7 @@ from mctspy.games.common import TwoPlayersAbstractGameState
 from mctspy.tree.search import MonteCarloTreeSearch
 from mctspy.tree.nodes import TwoPlayersGameMonteCarloTreeSearchNode
 from game import Game
+import torch
 
 class HnefataflState(TwoPlayersAbstractGameState):
     def __init__(self, game, turn):
@@ -18,9 +19,13 @@ class HnefataflState(TwoPlayersAbstractGameState):
 
     @property
     def game_result(self):
-        if self.game.is_over():
-            return self.game.get_reward(self.game.turn)  # Return 1 for player 1 win, -1 for player 2 win, 0 for draw/tie.
-        return None  # game is not over
+        from deep_learning import DQNetwork
+        if self.is_game_over():
+            return self.game.get_reward(self.game.turn)
+        else:
+            state_representation = self.game.get_state_representation()  # Get state in a format DQN expects
+            q_values = DQNetwork(torch.tensor(state_representation, dtype=torch.float32))
+            return q_values.max().item()  # Return the maximum Q-value for the current state
 
     def is_game_over(self):
         return self.game.is_over()
@@ -67,13 +72,13 @@ def msim():
             app.bot_action = move
 
 
-# Instantiate the game
-app = Game()
-app.setup_board()
 
-threading.Thread(target=msim).start()
+if __name__ == "__main__":
+    # Instantiate the game
+    app = Game()
+    app.setup_board()
 
-app.play_game()
+    threading.Thread(target=msim).start()
 
-# Run MCTS
+    app.play_game()
 

@@ -8,6 +8,7 @@ import os
 from collections import deque
 from datetime import datetime
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -15,7 +16,12 @@ import torch.nn.functional as F
 
 import random
 import threading
+
+from mctspy.tree.nodes import TwoPlayersGameMonteCarloTreeSearchNode
+from mctspy.tree.search import MonteCarloTreeSearch
+
 from hpgn import HPGN
+from ryfi.monte_carlo import HnefataflState
 
 
 # Neural network model for the Q-learning agent
@@ -68,6 +74,29 @@ class DQNAgent:
             # Choose a random valid action
             action = random.choice(valid_actions)
         else:
+            board_state = HnefataflState(env, env.turn)
+            last_board = board_state.game.board
+            root = TwoPlayersGameMonteCarloTreeSearchNode(state=board_state)
+            mcts = MonteCarloTreeSearch(root)
+            best_action = mcts.best_action(10)
+            # Convert boards to NumPy arrays
+            old_board_np = np.array(last_board)
+            new_board_np = np.array(best_action.state.game.board)
+
+            # Find indices where boards are different
+            diff_indices = np.argwhere(old_board_np != new_board_np)
+
+            # Find old and new places
+            if len(diff_indices) == 2:
+                if new_board_np[diff_indices[0][0], diff_indices[0][1]] == 0:
+                    old_place = [diff_indices[0][0], diff_indices[0][1]]
+                    new_place = [diff_indices[1][0], diff_indices[1][1]]
+                else:
+                    old_place = [diff_indices[1][0], diff_indices[1][1]]
+                    new_place = [diff_indices[0][0], diff_indices[0][1]]
+
+                return [old_place[0], old_place[1], new_place[1], new_place[0]]
+
             # Get Q-values for all possible actions
             q_values = self.network(torch.tensor(state, dtype=torch.float32))
 
