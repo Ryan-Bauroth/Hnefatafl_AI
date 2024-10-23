@@ -25,7 +25,7 @@ class Simulator:
         '''
         self.depth = depth
         self.turn = game.turn
-        self.reward = {root: [] for root in game.get_possible_moves()}
+        self.reward = {root: None for root in game.get_possible_moves()}
         self._run_sim(game)
     def _run_sim(self, game, depth=0, reward_so_far=0, root=None):
         '''
@@ -39,10 +39,10 @@ class Simulator:
         if game.turn == 1:
             king_r, king_c = game.king_loc
             surrounded_before = sum((
-                king_r == 0 or game.board[king_r-1][king_c] > 0,
-                king_r == BOARD_SIZE - 1 or game.board[king_r+1][king_c] > 0,
-                king_c == 0 or game.board[king_r][king_c-1] > 0,
-                king_c == BOARD_SIZE - 1 or game.board[king_r][king_c+1] > 0
+                king_r == 0 or game.board[king_r-1][king_c] == 1,
+                king_r == BOARD_SIZE - 1 or game.board[king_r+1][king_c] == 1,
+                king_c == 0 or game.board[king_r][king_c-1] == 1,
+                king_c == BOARD_SIZE - 1 or game.board[king_r][king_c+1] == 1
             ))
         keys_by_piece = {}
         for key in game.get_possible_moves():
@@ -67,10 +67,10 @@ class Simulator:
                     rewards[key] += (30 if game.turn == 1 else 20) * len(new_game.kill_coords) * (1 if self.turn==game.turn else -1)
                     if game.turn == 1:
                         surrounded_after = sum((
-                            king_r == 0 or new_game.board[king_r-1][king_c] > 0,
-                            king_r == BOARD_SIZE - 1 or new_game.board[king_r+1][king_c] > 0,
-                            king_c == 0 or new_game.board[king_r][king_c-1] > 0,
-                            king_c == BOARD_SIZE - 1 or new_game.board[king_r][king_c+1] > 0
+                            king_r == 0 or new_game.board[king_r-1][king_c] == 1,
+                            king_r == BOARD_SIZE - 1 or new_game.board[king_r+1][king_c] == 1,
+                            king_c == 0 or new_game.board[king_r][king_c-1] == 1,
+                            king_c == BOARD_SIZE - 1 or new_game.board[king_r][king_c+1] == 1
                         ))
                         if surrounded_after == 4:
                             rewards[key] += 250 * (1 if self.turn==game.turn else -1)
@@ -98,13 +98,13 @@ class Simulator:
             random.shuffle(all_keys)
             all_keys.sort(key=lambda x: rewards[x], reverse=self.turn==game.turn)
             moves.append(all_keys[0])
-            moves.append(all_keys[-1])
+            #moves.append(all_keys[-1])
         for key in moves:
             new_game = new_games[key]
             if new_game.is_over():
-                self.reward[key if root is None else root].append(rewards[key])
+                self.reward[key if root is None else root] = rewards[key]
             elif depth == self.depth:
-                self.reward[key if root is None else root].append(rewards[key])
+                self.reward[key if root is None else root] = rewards[key]
             else:
                 self._run_sim(new_game, depth, rewards[key], key if root is None else root)
     def best_moves(self):
@@ -112,11 +112,11 @@ class Simulator:
         :return: best moves after running the simulation
         '''
         #print(self.reward)
-        mins = {key: min(val) for key, val in self.reward.items() if val is not None}
-        best_min = max(mins.values())
-        maxes = {key: max(self.reward[key]) for key, val in mins.items() if val == best_min}
-        best_max = max(maxes.values())
-        return [key for key, val in maxes.items() if val == best_max]
+        mins = {key: val for key, val in self.reward.items() if val is not None}
+        #best_min = max(mins.values())
+        #maxes = {key: max(self.reward[key]) for key, val in mins.items() if val == best_min}
+        best = max(mins.values())
+        return [key for key, val in mins.items() if val == best]
 
 def multi_channel_board_representation(board):
     '''

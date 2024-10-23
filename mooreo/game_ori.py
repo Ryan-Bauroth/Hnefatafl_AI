@@ -218,6 +218,16 @@ class Game:
                 kill_coords.append((row, col + 1))
         # king checks
         if piece == 1:
+            king_r, king_c = self.king_loc
+            surrounded_before = sum((
+                king_r == 0 or self.board[king_r - 1][king_c] == 1,
+                king_r == BOARD_SIZE - 1 or self.board[king_r + 1][king_c] == 1,
+                king_c == 0 or self.board[king_r][king_c - 1] == 1,
+                king_c == BOARD_SIZE - 1 or self.board[king_r][king_c + 1] == 1
+            ))
+            if surrounded_before == 4:
+                self.winning_team = 1
+        '''if piece == 1:
             # north king capture
             if col - 1 > 0 and col + 1 < BOARD_SIZE - 1 and row != BOARD_SIZE - 1 and row != 0:
                 if self.board[row - 1][col] == 3 and (row - 2 < 0 or self.board[row - 2][col] == 1) and \
@@ -237,7 +247,7 @@ class Game:
             if row - 1 > 0 and row + 1 < BOARD_SIZE - 1 and col != BOARD_SIZE - 1 and col != 0:
                 if self.board[row][col + 1] == 3 and (col + 2 > BOARD_SIZE - 1 or self.board[row][col + 2] == piece) and \
                         self.board[row - 1][col + 1] == 1 and self.board[row + 1][col + 1] == 1:
-                    self.winning_team = 1
+                    self.winning_team = 1'''
         if len(kill_coords) > 0:
             self.reward_vals[self.turn] += .05
             self.reward_vals[3 - self.turn] -= .05
