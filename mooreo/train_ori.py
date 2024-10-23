@@ -123,6 +123,7 @@ class Simulator:
 def multi_channel_board_representation(board):
     '''
     creates board representation with separate channels for each piece type
+    method created with help of ChatGPT
     :param board: current board
     '''
     # Create an empty array for the multi-channel representation
@@ -150,6 +151,7 @@ def rotate_board(board, k):
 def rotate_action(action, k):
     """
     rotates action by k rotations
+    method created with help of ChatGPT
     :param action: tuple action
     :param k: number of rotations
     :return: rotated action
@@ -166,6 +168,7 @@ def rotate_action(action, k):
 def rotate_coords(row, col, k):
     """
     Rotates a coordinate pair (row, col) by 90 degrees counter-clockwise 'k' times.
+    method created with help of ChatGPT
     :param row: Row index.
     :param col: Column index.
     :param k: Number of 90-degree rotations to apply.
@@ -213,6 +216,7 @@ def unflatten_action(action):
 def select_action(game, policy_net, epsilon):
     """
     selects action with combination of reinforcement learning and Simulator with epsilon policy
+    method created with help of ChatGPT
     :param game: current game
     :param policy_net: policy network
     :param epsilon: epsilon
@@ -244,6 +248,7 @@ def ori_model():
 class DQN_CNN(nn.Module):
     '''
     reinforcement Deep Q model with convolutional layers
+    class created with help of ChatGPT
     '''
     def __init__(self, input_channels):
         super(DQN_CNN, self).__init__()
@@ -271,6 +276,7 @@ class DQN_CNN(nn.Module):
 class ReplayMemory:
     '''
     buffer deque for replay memory
+    class created with help of ChatGPT
     '''
     def __init__(self, capacity):
         '''
@@ -310,6 +316,7 @@ class ReplayMemory:
 class Trainer:
     '''
     trains model
+    class created with help of ChatGPT
     '''
     def __init__(self):
         '''
