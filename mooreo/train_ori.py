@@ -38,13 +38,12 @@ class Simulator:
         depth += 1
         if game.turn == 1:
             king_r, king_c = game.king_loc
-            if king_r != 0 and king_r != BOARD_SIZE - 1 and king_c != 0 and king_c != BOARD_SIZE - 1:
-                surrounded_before = sum((
-                    game.board[king_r-1][king_c] > 0,
-                    game.board[king_r+1][king_c] > 0,
-                    game.board[king_r][king_c+1] > 0,
-                    game.board[king_r][king_c-1] > 0
-                ))
+            surrounded_before = sum((
+                king_r == 0 or game.board[king_r-1][king_c] > 0,
+                king_r == BOARD_SIZE - 1 or game.board[king_r+1][king_c] > 0,
+                king_c == 0 or game.board[king_r][king_c-1] > 0,
+                king_c == BOARD_SIZE - 1 or game.board[king_r][king_c+1] > 0
+            ))
         keys_by_piece = {}
         for key in game.get_possible_moves():
             piece = key[0], key[1]
@@ -67,19 +66,24 @@ class Simulator:
                 else:
                     rewards[key] += (30 if game.turn == 1 else 20) * len(new_game.kill_coords) * (1 if self.turn==game.turn else -1)
                     if game.turn == 1:
-                        if king_r != 0 and king_r != BOARD_SIZE - 1 and king_c != 0 and king_c != BOARD_SIZE - 1:
-                            surrounded_after = sum((
-                                new_game.board[king_r-1][king_c] > 0,
-                                new_game.board[king_r+1][king_c] > 0,
-                                new_game.board[king_r][king_c+1] > 0,
-                                new_game.board[king_r][king_c-1] > 0
-                            ))
-                            if surrounded_after == 4:
-                                rewards[key] += 250 * (1 if self.turn==game.turn else -1)
-                            else:
-                                rewards[key] += 5 * (surrounded_after - surrounded_before) * (1 if self.turn==game.turn else -1)
+                        surrounded_after = sum((
+                            king_r == 0 or new_game.board[king_r-1][king_c] > 0,
+                            king_r == BOARD_SIZE - 1 or new_game.board[king_r+1][king_c] > 0,
+                            king_c == 0 or new_game.board[king_r][king_c-1] > 0,
+                            king_c == BOARD_SIZE - 1 or new_game.board[king_r][king_c+1] > 0
+                        ))
+                        if surrounded_after == 4:
+                            rewards[key] += 250 * (1 if self.turn==game.turn else -1)
+                        else:
+                            rewards[key] += 5 * (surrounded_after - surrounded_before) * (1 if self.turn==game.turn else -1)
                     if game.board[cur_row][cur_col] == 3:
-                        if new_row == 0 or new_row == BOARD_SIZE - 1 or new_col == 0 or new_col == BOARD_SIZE - 1:
+                        empty_file_to_corner = (
+                          (new_row == 0 and (all(new_game.board[0][c]==0 for c in range(1, new_col)) or all(new_game.board[0][c]==0 for c in range(new_col+1, BOARD_SIZE-1)))) or
+                          (new_row == BOARD_SIZE - 1 and (all(new_game.board[BOARD_SIZE - 1][c]==0 for c in range(1, new_col)) or all(new_game.board[BOARD_SIZE - 1][c]==0 for c in range(new_col+1, BOARD_SIZE-1)))) or
+                          (new_col == 0 and (all(new_game.board[r][0]==0 for r in range(1, new_row)) or all(new_game.board[r][0]==0 for r in range(new_row+1, BOARD_SIZE-1)))) or
+                          (new_col == BOARD_SIZE - 1 and (all(new_game.board[r][BOARD_SIZE - 1]==0 for r in range(1, new_row)) or all(new_game.board[r][BOARD_SIZE - 1]==0 for r in range(new_row+1, BOARD_SIZE-1))))
+                        )
+                        if empty_file_to_corner:
                             rewards[key] += 50 * (1 if self.turn==game.turn else -1) * (1 if game.turn==2 else -1)
                             if new_row == 1 or new_row == BOARD_SIZE - 2 or new_col == 1 or new_col == BOARD_SIZE - 2:
                                 rewards[key] += 200 * (1 if self.turn==game.turn else -1) * (1 if game.turn==2 else -1)
@@ -117,6 +121,7 @@ class Simulator:
 def multi_channel_board_representation(board):
     '''
     creates board representation with separate channels for each piece type
+    method created with help of ChatGPT
     :param board: current board
     '''
     # Create an empty array for the multi-channel representation
@@ -144,6 +149,7 @@ def rotate_board(board, k):
 def rotate_action(action, k):
     """
     rotates action by k rotations
+    method created with help of ChatGPT
     :param action: tuple action
     :param k: number of rotations
     :return: rotated action
@@ -160,6 +166,7 @@ def rotate_action(action, k):
 def rotate_coords(row, col, k):
     """
     Rotates a coordinate pair (row, col) by 90 degrees counter-clockwise 'k' times.
+    method created with help of ChatGPT
     :param row: Row index.
     :param col: Column index.
     :param k: Number of 90-degree rotations to apply.
@@ -207,6 +214,7 @@ def unflatten_action(action):
 def select_action(game, policy_net, epsilon):
     """
     selects action with combination of reinforcement learning and Simulator with epsilon policy
+    method created with help of ChatGPT
     :param game: current game
     :param policy_net: policy network
     :param epsilon: epsilon
@@ -238,6 +246,7 @@ def ori_model():
 class DQN_CNN(nn.Module):
     '''
     reinforcement Deep Q model with convolutional layers
+    class created with help of ChatGPT
     '''
     def __init__(self, input_channels):
         super(DQN_CNN, self).__init__()
@@ -265,6 +274,7 @@ class DQN_CNN(nn.Module):
 class ReplayMemory:
     '''
     buffer deque for replay memory
+    class created with help of ChatGPT
     '''
     def __init__(self, capacity):
         '''
@@ -304,6 +314,7 @@ class ReplayMemory:
 class Trainer:
     '''
     trains model
+    class created with help of ChatGPT
     '''
     def __init__(self):
         '''
