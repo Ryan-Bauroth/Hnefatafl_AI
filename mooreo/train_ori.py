@@ -79,7 +79,13 @@ class Simulator:
                             else:
                                 rewards[key] += 5 * (surrounded_after - surrounded_before) * (1 if self.turn==game.turn else -1)
                     if game.board[cur_row][cur_col] == 3:
-                        if new_row == 0 or new_row == BOARD_SIZE - 1 or new_col == 0 or new_col == BOARD_SIZE - 1:
+                        empty_file_to_corner = (
+                          (new_row == 0 and (all(new_game.board[0][c]==0 for c in range(1, new_col)) or all(new_game.board[0][c]==0 for c in range(new_col+1, BOARD_SIZE-1)))) or
+                          (new_row == BOARD_SIZE - 1 and (all(new_game.board[BOARD_SIZE - 1][c]==0 for c in range(1, new_col)) or all(new_game.board[BOARD_SIZE - 1][c]==0 for c in range(new_col+1, BOARD_SIZE-1)))) or
+                          (new_col == 0 and (all(new_game.board[r][0]==0 for r in range(1, new_row)) or all(new_game.board[r][0]==0 for r in range(new_row+1, BOARD_SIZE-1)))) or
+                          (new_col == BOARD_SIZE - 1 and (all(new_game.board[r][BOARD_SIZE - 1]==0 for r in range(1, new_row)) or all(new_game.board[r][BOARD_SIZE - 1]==0 for r in range(new_row+1, BOARD_SIZE-1))))
+                        )
+                        if empty_file_to_corner:
                             rewards[key] += 50 * (1 if self.turn==game.turn else -1) * (1 if game.turn==2 else -1)
                             if new_row == 1 or new_row == BOARD_SIZE - 2 or new_col == 1 or new_col == BOARD_SIZE - 2:
                                 rewards[key] += 200 * (1 if self.turn==game.turn else -1) * (1 if game.turn==2 else -1)
