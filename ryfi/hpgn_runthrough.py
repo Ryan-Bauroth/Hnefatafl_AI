@@ -41,7 +41,7 @@ class sim_game():
         :return: None
         """
         global moves_played
-        with open('saved_games/episode_100.hgpn', 'r') as file:
+        with open('saved_games/episode_50.hgpn', 'r') as file:
             moves_simmed = 0
             # Read the content of the file
             content = file.read().split("\n")

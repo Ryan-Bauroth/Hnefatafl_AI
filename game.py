@@ -150,9 +150,9 @@ class Game:
         :return: The reward for the given player. Returns 1 if the player is on the winning team, -1 if not on the winning team and the winning team is not neutral, otherwise returns a predefined reward value for the player.
         """
         if player == self.winning_team:
-            return 1
+            return 3
         elif self.winning_team != 0:
-            return -1
+            return -3
         else:
             return self.reward_vals[player]
 
@@ -165,6 +165,17 @@ class Game:
         if self.check_king_win():
             self.winning_team = 2
             return True
+        found = False
+        for r in range(BOARD_TILES):
+            for c in range(BOARD_TILES):
+                if self.board[r][c] == 3:
+                    if (r == 10 or self.board[r+1][c] == 1) and (r == 0 or self.board[r-1][c] == 1)\
+                            and (c == 10 or self.board[r][c+1] == 1) and (c == 0 or self.board[r][c-1] == 1):
+                        self.winning_team = 1
+                    found = True
+                    break
+            if found:
+                break
         return self.winning_team != 0
 
     def get_piece_possible_moves(self, col, row, piece):
@@ -247,16 +258,22 @@ class Game:
                     if dist2 < old_dist:
                         old_dist = dist2
                 if old_dist > new_dist:
-                    self.reward_vals[self.turn] += .05
-                    self.reward_vals[3-self.turn] -= .05
+                    self.reward_vals[self.turn] += .01
                 elif old_dist < new_dist:
-                    self.reward_vals[self.turn] -= .05
-                    self.reward_vals[3-self.turn] += .05
+                    self.reward_vals[self.turn] -= .01
+                if self.board[min(grid_y + 1, 10)][grid_x] == 1:
+                    self.reward_vals[self.turn] -= .005
+                if self.board[grid_y][min(grid_x + 1, 10)] == 1:
+                    self.reward_vals[self.turn] -= .005
+                if self.board[max(grid_y - 1, 0)][grid_x] == 1:
+                    self.reward_vals[self.turn] -= .005
+                if self.board[grid_y][max(grid_x - 1, 0)] == 1:
+                    self.reward_vals[self.turn] -= .005
             if self.turn == 1:
                 if self.board[min(grid_y + 1, 10)][grid_x] == 3 or self.board[grid_y][min(grid_x + 1, 10)] == 3 \
                         or self.board[max(grid_y - 1, 0)][grid_x] == 3 or self.board[grid_y][max(grid_x - 1, 0)]:
-                    self.reward_vals[self.turn] += .05
-                    self.reward_vals[3-self.turn] -= .05
+                    self.reward_vals[self.turn] += .03
+                    self.reward_vals[3-self.turn] -= .005
 
             self.board[row][col] = 0
             self.kill_coords = self.check_kills(grid_y, grid_x, piece)
@@ -328,8 +345,12 @@ class Game:
                     self.board[row - 1][col + 1] == 1 and self.board[row + 1][col + 1] == 1:
                     self.winning_team = 1
         if len(kill_coords) > 0:
-            self.reward_vals[self.turn] += .05
-            self.reward_vals[3 - self.turn] -= .05
+            if self.turn == 1:
+                self.reward_vals[self.turn] += .04
+                self.reward_vals[3 - self.turn] -= .03
+            elif self.turn == 2:
+                self.reward_vals[self.turn] += .03
+                self.reward_vals[3 - self.turn] -= .02
         return kill_coords
 
     def check_king_win(self):
