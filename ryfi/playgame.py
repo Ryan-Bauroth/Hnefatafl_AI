@@ -5,12 +5,14 @@ Runs trained models on a game
 """
 
 import os
+import time
+
 from game import Game
 from ryfi.deep_learning import DQNAgent
 
 game = Game()
 
-state_size = 11 * 11
+state_size = 11
 # comes from...
 output_size = 14641
 
@@ -25,6 +27,7 @@ if os.path.exists("saved_models/agent2.pth"):
 # sets up input functions
 def agent_1_move(game):
     action = agent1.act(game.get_state_representation(), game)
+
 
     new_col = action[3]
     new_row = action[2]
@@ -44,7 +47,7 @@ def agent_2_move(game):
     return curr_row, curr_col, new_row, new_col
 
 # true if the bot is being used
-bots = [False, True]
+bots = [True, False]
 
 # adds bots to the game
 if bots[0]:
